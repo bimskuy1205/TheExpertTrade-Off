@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#061210">
+  <title>SYLVARIS — Command Dashboard & 3D Digital Twin</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/dash.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body data-page="dash">
+  <div class="hud">
+    <span><i class="blink"></i><span data-i18n="dash.badge">REPLAY RETROSPEKTIF · BUKAN TELEMETRI LIVE</span></span>
+    <span class="hud-mid hide-sm" data-i18n="hud.loc">SEBANGAU, KALTENG · 2.31°S 113.90°E</span>
+    <span class="hide-sm" id="dashVerifyHud">PARITY: ...</span>
+    <span data-clock>00:00:00 WIB</span>
+  </div>
+
+  <header class="nav is-scrolled">
+    <div class="container nav-in">
+      <a href="index.html" class="brand">
+        <img src="assets/img/favicon.svg" alt="SYLVARIS">
+        <span>SYLVARIS<small data-i18n="dash.title">Konsol Riset & Kembaran Digital 3D</small></span>
+      </a>
+
+      <div class="nav-tools" style="margin-left:auto">
+        <button type="button" class="lang-pill" data-lang-pill data-lang="id" data-i18n-title="nav.lang_title" title="Ganti Bahasa (ID / EN)">
+          <span data-l="id" class="on">ID</span>
+          <span data-l="en">EN</span>
+        </button>
+        <button type="button" class="icon-btn" id="themeBtn" data-i18n-title="nav.theme_title" title="Ganti Tema">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41"/></svg>
+        </button>
+        <a href="index.html" class="btn btn-ghost btn-sm" data-i18n="nav.back_paper">← Kembali ke Paper</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="dash-shell">
+    <!-- ==================== LEFT DOCK: SOURCE, POLICY & REPLAY ==================== -->
+    <aside class="dash-col">
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.src_sec">01 // Sumber Data &amp; Logger</span>
+          <small id="srcKindTag" data-i18n="dash.src_leeds">LEEDS RESMI</small>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <label class="field">
+            <span data-i18n="dash.site_lbl">Pilih Logger Sebangau (30% Akhir)</span>
+            <select id="dSite"></select>
+          </label>
+          <label class="dropzone">
+            <span>📄 <span data-i18n="dash.upload_btn">Impor CSV Sendiri (Leeds / test_predictions.csv)</span></span>
+            <input type="file" id="dCsvInput" accept=".csv">
+          </label>
+          <div class="mono" style="font-size:11px;color:var(--text-3)" id="dCsvStatus" data-i18n="dash.csv_active">Aktif: Rekaman 3 jam resmi Sebangau</div>
+        </div>
+      </div>
+
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.pol_sec">02 // Kebijakan &amp; Parameter</span>
+          <small>V8 ENGINE</small>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <label class="field">
+            <span data-i18n="dash.pol_lbl">Kebijakan Penjadwalan</span>
+            <select id="dPolicy">
+              <option value="Safety_V8" data-i18n="s5.opt_v8">Safety_V8 (Pintar 3 / 6 / 9 jam + Fast-Hold)</option>
+              <option value="Fixed_6h" data-i18n="s5.opt_6h">Fixed_6h (Rutin Setiap 6 Jam)</option>
+              <option value="Adaptive_V6" data-i18n="s5.opt_v6">Adaptive_V6 (Konfigurasi Awal)</option>
+              <option value="Fixed_3h" data-i18n="s5.opt_3h">Fixed_3h (Referensi Terpadat 3 Jam)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span><span data-i18n="dash.rfast_lbl">r_fast (picu waspada 3 jam)</span> <b id="dFastV">2.0 cm/3h</b></span>
+            <input type="range" id="dFast" min="0.5" max="6" step="0.5" value="2.0">
+          </label>
+          <label class="field">
+            <span><span data-i18n="dash.rmed_lbl">r_med (picu cek 6 jam)</span> <b id="dMedV">0.8 cm/3h</b></span>
+            <input type="range" id="dMed" min="0.2" max="3" step="0.2" value="0.8">
+          </label>
+          <label class="field">
+            <span><span data-i18n="dash.hold_lbl">Kunci Fast-Hold</span> <b id="dHoldV">2</b></span>
+            <input type="range" id="dHold" min="0" max="4" step="1" value="2">
+          </label>
+          <label class="field">
+            <span data-i18n="dash.fault_lbl">Injeksi Error (Tiap Baca ke-N; 0=Mati)</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="range" id="dFault" min="0" max="25" step="1" value="0">
+              <b class="mono lime" id="dFaultV" style="min-width:26px;text-align:right">0</b>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.play_sec">03 // Kontrol Pemutar Waktu-Nyata</span>
+          <small id="playSlotInfo">SLOT 0 / 0</small>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="play-row">
+            <button type="button" class="btn btn-sm" id="playBtn">▶ <span data-i18n="dash.play">Putar Replay</span></button>
+            <button type="button" class="btn btn-ghost btn-sm" id="playResetBtn" data-i18n="dash.reset">Reset</button>
+            <select id="playSpeed" style="padding:7px 28px 7px 10px;font-size:12px">
+              <option value="220">1×</option>
+              <option value="80" selected>4×</option>
+              <option value="25">12×</option>
+            </select>
+          </div>
+          <input type="range" id="playScrub" min="0" max="100" value="0">
+          <button type="button" class="btn btn-ghost btn-sm" id="exportBtn">⬇ <span data-i18n="dash.export">Ekspor JSON Trace</span></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== CENTER: 3D TWIN + ANATOMY + TELEMETRY CHART ==================== -->
+    <section class="dash-col" style="padding:0">
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.twin_head">KEMBARAN DIGITAL 3D NODE (PUTAR 360° &amp; ANATOMI EXPLODE)</span>
+          <small id="d3dStatus">SOLID · ORBIT 360°</small>
+        </div>
+
+        <div class="twin-stage hud-corners" data-3d-stage>
+          <i class="hc tl"></i><i class="hc tr"></i><i class="hc bl"></i><i class="hc br"></i>
+          <div class="hud-tl" id="d3dPartTag" data-i18n="dash.click_part">14 KOMPONEN · KLIK BAGIAN</div>
+          <div class="hud-tr" id="d3dWaterTag">WATER LEVEL: 55%</div>
+          <div class="loader-3d" id="d3dLoader" data-i18n="dash.boot">MEMUAT 3D TWIN...</div>
+          <div class="viewport" id="dashViewport"></div>
+          <div class="cine-sub-pill" id="dashTourSub" style="bottom:14px"><b>01 · TOUR 72S</b><span>—</span></div>
+        </div>
+
+        <div class="twin-toolbar">
+          <div class="twin-slider">
+            <label for="dExplode" data-i18n="hero.explode_lbl">EXPLODE</label>
+            <input type="range" id="dExplode" min="0" max="100" value="25">
+            <b class="mono lime" id="dExplodeV" style="font-size:11.5px;min-width:34px">25%</b>
+          </div>
+          <div class="seg" id="dModeSeg">
+            <button type="button" data-mode="solid" class="is-on" data-i18n="dash.mode_solid">Solid</button>
+            <button type="button" data-mode="wire" data-i18n="dash.mode_wire">Rangka</button>
+            <button type="button" data-mode="xray" data-i18n="dash.mode_xray">X-Ray</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <button type="button" class="btn btn-sm" id="dTourBtn" style="padding:7px 12px;font-size:12px">▶ <span data-i18n="tour.hero_btn">Simulasi 72s</span></button>
+            <button type="button" class="btn btn-ghost btn-sm" id="dTourExpBtn" title="Export 72s WebM Video">⬇ .webm</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-dcam="iso" data-i18n="s2.cam_iso">Isometrik</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-dcam="front" data-i18n="s2.cam_front">Depan</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-dcam="top" data-i18n="s2.cam_top">Atas</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-dcam="side" data-i18n="s2.cam_side">Samping</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="dLabelsBtn" data-i18n="hero.labels_btn">Pin</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="dRotateBtn" data-i18n="dash.spin">Putar Otomatis</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="dPingBtn" data-i18n="hero.ping_btn">Tes LoRa</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="dCamResetBtn" data-i18n="hero.reset_btn">Reset</button>
+          </div>
+        </div>
+
+        <!-- 14-Part Exploded Anatomy Browser inside Dashboard -->
+        <div class="dash-anat">
+          <div class="dash-anat-list" id="dAnatList"></div>
+          <div class="dash-anat-detail">
+            <div class="spec-row" style="margin:0 0 6px">
+              <span class="tag ok" id="dpNo">05</span>
+              <span class="tag info" id="dpLayer">Komputasi</span>
+              <span class="tag warn" id="dpStatus">Retail [12]</span>
+              <span class="tag" id="dpPrice">Rp117.500</span>
+            </div>
+            <h4 id="dpName">ESP32-S3 Microcontroller</h4>
+            <div class="mono cyan" style="font-size:11px;margin-bottom:6px" id="dpSpec">—</div>
+            <p id="dpRole">—</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time-Series Telemetry Chart & KPI Strip -->
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.chart_head">REKAM HIDROLOGI, PENJADWALAN & PENANDINGAN EPISODE (TEST TAIL 30%)</span>
+          <small id="dChartMeta">—</small>
+        </div>
+
+        <div class="dash-kpis">
+          <div class="dkpi"><small data-i18n="dash.kpi_rec">Recall (Tertangkap/Total)</small><b class="emerald" id="dkRecall">—</b></div>
+          <div class="dkpi"><small data-i18n="dash.kpi_f1">Skor F1 · Tunda Rata2</small><b class="cyan" id="dkF1">—</b></div>
+          <div class="dkpi"><small data-i18n="dash.kpi_eng">Energi Simulasi</small><b class="lime" id="dkEnergy">—</b></div>
+          <div class="dkpi"><small data-i18n="dash.kpi_reads">Jumlah Baca · Error</small><b class="amber" id="dkReads">—</b></div>
+        </div>
+
+        <div class="chart-wrap" id="dashChart"></div>
+        <div class="legend">
+          <span><i style="background:var(--cyan)"></i><span data-i18n="s5.leg_water">Muka Air (grid 3 jam)</span></span>
+          <span><i style="background:var(--amber)"></i><span data-i18n="s5.leg_ref">Kejadian Uji (|Δx|≥5cm)</span></span>
+          <span><i style="background:var(--emerald)"></i><span data-i18n="s5.leg_alarm">Alarm Cocok / Baca Valid</span></span>
+          <span><i style="background:var(--rose)"></i><span data-i18n="s5.leg_miss">Error / Terlewat</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== RIGHT DOCK: SERIAL LOG & TRANSPARENCY ==================== -->
+    <aside class="dash-col right">
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.log_head">CATATAN SERIAL ALAT &amp; TRANSPARANSI KEPUTUSAN</span>
+          <small>UART 115200</small>
+        </div>
+        <div class="terminal">
+          <div class="terminal-head"><i></i><i></i><i></i><span>esp32s3_v8_scheduler.log</span></div>
+          <div class="terminal-body" id="dashLog" style="max-height:310px"></div>
+        </div>
+      </div>
+
+      <div class="dash-panel">
+        <div class="dash-head">
+          <span data-i18n="dash.trans_head">TRANSPARANSI KEPUTUSAN</span>
+          <small data-i18n="dash.trans_sub">ASAL-USUL DATA</small>
+        </div>
+        <div class="ledger">
+          <div class="ledger-row"><span data-i18n="dash.l_alert_k">Dasar Peringatan</span><strong data-i18n="dash.l_alert_v">Proksi hidrologi (|Δx| ≥ 5 cm)</strong></div>
+          <div class="ledger-row"><span data-i18n="dash.l_fire_k">Deteksi Kebakaran</span><strong class="rose" data-i18n="dash.l_fire_v">BELUM DIVALIDASI</strong></div>
+          <div class="ledger-row"><span data-i18n="dash.l_rf_k">Perangkat Keras / LoRa</span><strong class="amber" data-i18n="dash.l_rf_v">KONSEPTUAL · BELUM TERPASANG</strong></div>
+          <div class="ledger-row"><span data-i18n="dash.l_eng_k">Perhitungan Energi</span><strong class="amber" data-i18n="dash.l_eng_v">HASIL MODEL (BELUM DIUKUR FISIK)</strong></div>
+          <div class="ledger-row"><span data-i18n="dash.l_dat_k">Cakupan Acuan Tinggi</span><strong data-i18n="dash.l_dat_v">Patok sumur lokal [1]</strong></div>
+          <div class="ledger-row"><span data-i18n="dash.verify_lbl">Verifikasi Mesin vs CSV Resmi</span><strong class="emerald" id="dParityRow">—</strong></div>
+        </div>
+        <div class="callout" style="margin-top:14px;padding:12px 14px">
+          <div class="ico" style="font-size:16px">🛡️</div>
+          <p style="font-size:12px" data-i18n-html="dash.integrity_html"><b>KEJUJURAN RISET:</b> Menampilkan putar-ulang data sejarah resmi University of Leeds atau file CSV pengguna. Tidak merepresentasikan sensor aktif di hutan atau prediksi kebakaran langsung.</p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="assets/data/loggers.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/site.js"></script>
+  <script type="module" src="assets/js/dash.js"></script>
+</body>
+</html>

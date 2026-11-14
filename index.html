@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#061210">
+  <title>SYLVARIS — The Expert Trade-Off | Pemantauan Hidrologi Gambut Off-Grid</title>
+  <meta name="description" content="SYLVARIS: Studi desain penjadwalan adaptif sadar-keandalan pada pemantauan hidrologi gambut tropis Sebangau dengan model node 3D interaktif dan dashboard simulasi.">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body data-page="home">
+  <!-- Preloader Boot Sequence -->
+  <div id="preloader" data-lines="INIT ESP32-S3 RTC BOOTSTRAP|MOUNT SEBANGAU LEEDS DOI:10.5518/960|VERIFY 3,275 AUDIT PAIRS (0 MISMATCH)|LOAD SAFETY V8 CONTROLLER + 6H FALLBACK|COMPILE THREE.JS 14-PART 3D NODE TWIN|PARITY CHECK ENGINE JS == V8 CSV (72/72)">
+    <div class="boot">
+      <div class="boot-head">
+        <img src="assets/img/favicon.svg" alt="SYLVARIS Logo">
+        <div>
+          <b>SYLVARIS</b>
+          <small>THE EXPERT TRADE-OFF · BOOT SEQUENCE</small>
+        </div>
+      </div>
+      <div class="boot-log"></div>
+      <div class="boot-foot">
+        <div class="boot-bar"><i></i></div>
+        <span class="boot-pct">000%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress"><i></i></div>
+
+  <!-- Top Telemetry HUD Bar -->
+  <div class="hud">
+    <span><i class="blink"></i><span data-i18n-html="hud.sys">STATUS KONSEP: <b>REPLAY RETROSPEKTIF</b> · BELUM DEPLOY LAPANGAN</span></span>
+    <span class="hud-mid hide-sm" data-i18n="hud.loc">SEBANGAU, KALTENG · 2.31°S 113.90°E</span>
+    <span class="hide-sm" data-i18n-html="hud.src">DATA: <b>LEEDS DOI 10.5518/960</b> (9 LOGGER)</span>
+    <span data-clock>00:00:00 WIB</span>
+  </div>
+
+  <!-- Sticky Navigation -->
+  <header class="nav">
+    <div class="container nav-in">
+      <a href="#top" class="brand" data-cursor="TOP">
+        <img src="assets/img/favicon.svg" alt="SYLVARIS">
+        <span>SYLVARIS<small data-i18n="nav.brand_sub">THE EXPERT TRADE-OFF</small></span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#masalah" data-i18n="nav.problem">01 // MASALAH</a>
+        <a href="#arsitektur" data-i18n="nav.arch">02 // ARSITEKTUR & 3D</a>
+        <a href="#scheduler" data-i18n="nav.v8">03 // LOGIKA V8</a>
+        <a href="#dataset" data-i18n="nav.data">04 // DATA AUDIT</a>
+        <a href="#hasil" data-i18n="nav.results">05 // HASIL & LAB</a>
+        <a href="#implementasi" data-i18n="nav.bom">06 // BOM & BUKTI</a>
+        <a href="#tim" data-i18n="nav.team">07 // TIM</a>
+      </nav>
+
+      <div class="nav-tools">
+        <button type="button" class="lang-pill" data-lang-pill data-lang="id" data-i18n-title="nav.lang_title" title="Ganti Bahasa (ID / EN)" data-cursor="LANG">
+          <span data-l="id" class="on">ID</span>
+          <span data-l="en">EN</span>
+        </button>
+        <button type="button" class="icon-btn" id="themeBtn" data-i18n-title="nav.theme_title" title="Ganti Tema" data-cursor="TEMA">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="motionBtn" data-i18n-title="nav.motion_title" title="Animasi" data-cursor="FX">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h4l3-7 4 14 3-7h2"/></svg>
+        </button>
+        <a href="dashboard.html" class="btn btn-sm magnetic" data-cursor="3D LAB">
+          <span data-i18n="nav.dash_btn">Dashboard 3D</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7M9 7h8v8"/></svg>
+        </a>
+        <button type="button" class="icon-btn nav-burger" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ==================== HERO ==================== -->
+    <section class="hero">
+      <canvas id="mesh"></canvas>
+      <div class="container hero-grid">
+        <div>
+          <div class="hero-badges reveal">
+            <span class="chip"><i class="dot"></i><span data-i18n="hero.b1">TECHTONIC 3.0 · INNOVATION PAPER</span></span>
+            <span class="chip cyan"><i class="dot"></i><span data-i18n="hero.b2">TEKNIK KOMPUTER · UNIVERSITAS BRAWIJAYA</span></span>
+            <span class="chip amber"><i class="dot"></i><span data-i18n="hero.b3">STUDI DESAIN · BUKAN ALARM KEBAKARAN</span></span>
+          </div>
+
+          <h1 class="reveal">
+            <span class="row"><span class="grad" data-scramble data-i18n="hero.h1_pre">SYLVARIS</span></span>
+          </h1>
+          <div class="mono lime reveal" style="font-size:clamp(14px,1.6vw,19px);letter-spacing:.26em;margin-top:10px" data-i18n="hero.h1_sub">THE EXPERT TRADE-OFF</div>
+
+          <p class="hero-kicker reveal" data-i18n-html="hero.kicker">Menyeimbangkan <em>hemat daya baterai</em> dan <em>keandalan deteksi muka air gambut</em> pada node sensor terpencil.</p>
+          <p class="hero-sub reveal" data-i18n="hero.lead">Bagaimana mikrokontroler berdaya rendah memutuskan kapan harus tidur nyenyak (9 jam) dan kapan harus bangun cepat (3 jam) tanpa melewatkan lonjakan muka air — lengkap dengan simulasi jujur terhadap keterbatasannya.</p>
+
+          <div class="hero-cta reveal">
+            <a href="dashboard.html" class="btn magnetic" data-cursor="LAUNCH">
+              <span data-i18n="hero.cta_dash">Buka Dashboard 3D & Lab</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+            </a>
+            <a href="#masalah" class="btn btn-ghost magnetic" data-cursor="READ">
+              <span data-i18n="hero.cta_read">Pelajari Alur Riset</span>
+            </a>
+          </div>
+
+          <div class="hero-stats" data-stagger="90">
+            <div class="stat spot tilt">
+              <b class="emerald"><span data-count="91.9" data-dec="1" data-suf="%">0%</span></b>
+              <small data-i18n="hero.s1_lbl">Recall Episode V8 (34/37)</small>
+              <small style="text-transform:none;color:var(--text-2)" data-i18n="hero.s1_sub">Setara Fixed 6 jam · Ungguli V6 (75,7%)</small>
+            </div>
+            <div class="stat spot tilt">
+              <b class="cyan">0.76–3.6<span style="font-size:.65em">%</span></b>
+              <small data-i18n="hero.s2_lbl">Hemat Energi Model vs 6 jam</small>
+              <small style="text-transform:none;color:var(--text-2)" data-i18n="hero.s2_sub">13,1–15,6% vs Fixed 3 jam (simulasi)</small>
+            </div>
+            <div class="stat spot tilt">
+              <b class="lime"><span data-count="1062300" data-pre="Rp">Rp0</span></b>
+              <small data-i18n="hero.s3_lbl">Estimasi BOM / Node (IDR)</small>
+              <small style="text-transform:none;color:var(--text-2)" data-i18n="hero.s3_sub">Skenario 10 node Rp13,65 jt (indikatif)</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3D Digital Twin Stage in Hero -->
+        <div class="hero-3d hud-corners reveal" data-3d-stage>
+          <i class="hc tl"></i><i class="hc tr"></i><i class="hc bl"></i><i class="hc br"></i>
+          <div class="hud-tl" data-i18n="hero.3d_tl">PROTOTIPE KONSEPTUAL · 14 KOMPONEN</div>
+          <div class="hud-tr" data-i18n="hero.3d_tr">PUTAR 360° · SCROLL ZOOM · KLIK PART</div>
+          <div class="hud-bl"><span class="emerald" id="heroPartTag">—</span></div>
+          <div class="hud-br" id="heroPartHint" data-i18n="hero.3d_br">KLIK PART UNTUK INSPEKSI</div>
+          <div class="loader-3d" id="heroLoader" data-i18n="hero.3d_boot">MEMUAT VISUAL 3D...</div>
+          <div class="viewport" id="heroViewport"></div>
+          <div class="cine-sub-pill" id="heroTourSub"><b>—</b><span>—</span></div>
+
+          <div class="ctrl">
+            <button type="button" class="btn btn-sm" id="heroTourBtn" style="padding:7px 12px;font-size:12px">▶ <span data-i18n="tour.hero_btn">Simulasi 72s</span></button>
+            <label for="heroExplode" data-i18n="hero.explode_lbl">EXPLODE</label>
+            <input type="range" id="heroExplode" min="0" max="100" value="0" style="--p:0%">
+            <button type="button" class="btn btn-ghost btn-sm" id="heroLabelsBtn" data-i18n="hero.labels_btn">Pin</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="heroPingBtn" data-i18n="hero.ping_btn">Tes LoRa</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="heroResetBtn" data-i18n="hero.reset_btn">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plain-Language How-It-Works & Analogy Strip right at the Top of Site -->
+      <div class="container">
+        <div class="how-strip reveal">
+          <div class="how-head">
+            <div>
+              <div class="eyebrow" style="margin-bottom:4px" data-i18n="hero.how_eye">PANDUAN SINGKAT · BAGAIMANA ALAT INI BEKERJA?</div>
+              <h3 data-i18n="hero.how_title">Analogi Penjaga Pintu Air dengan Jam Pintar Super Irit</h3>
+            </div>
+            <a href="#sim72s" class="btn btn-ghost btn-sm" style="white-space:nowrap">▶ <span data-i18n="tour.play">Putar Simulasi 72s</span></a>
+          </div>
+          <p class="how-analogy" data-i18n-html="hero.how_analogy">Bayangkan alat ini seperti <strong>penjaga sumur gambut di pedalaman hutan</strong> tanpa kabel listrik dan tanpa sinyal HP. Jika ia bangun mengecek air terlalu sering, baterainya cepat habis. Jika terlalu lama tidur, perubahan air mendadak bisa terlewat. Karena itu, SYLVARIS bekerja cerdas: <strong>tidur pulas 9 jam saat air tenang</strong>, lalu langsung <strong>bangun tiap 3 jam saat air turun/naik cepat</strong>, dan melapor lewat sinyal radio jarak jauh.</p>
+          <div class="how-steps">
+            <div class="how-step">
+              <span class="n" data-i18n="hero.how_s1_n">LANGKAH 01 · UKUR</span>
+              <b data-i18n="hero.how_s1_t">Baca Tinggi Air Sumur</b>
+              <small data-i18n="hero.how_s1_d">Sensor celup di dalam pipa sumur pantau mengukur posisi muka air tanah dengan patok survei lokal.</small>
+            </div>
+            <div class="how-step">
+              <span class="n" data-i18n="hero.how_s2_n">LANGKAH 02 · HITUNG</span>
+              <b data-i18n="hero.how_s2_t">Cek Kecepatan Perubahan</b>
+              <small data-i18n="hero.how_s2_d">Otak ESP32-S3 menghitung seberapa cepat air bergeser per 3 jam, lalu mengecek apakah data valid.</small>
+            </div>
+            <div class="how-step">
+              <span class="n" data-i18n="hero.how_s3_n">LANGKAH 03 · ATUR JADWAL</span>
+              <b data-i18n="hero.how_s3_t">Pilih Tidur 9j, 6j, atau Siaga 3j</b>
+              <small data-i18n="hero.how_s3_d">Air tenang → hemat 9 jam. Air berubah cepat (≥2 cm/3j) atau sensor error → otomatis cek tiap 3 jam!</small>
+            </div>
+            <div class="how-step">
+              <span class="n" data-i18n="hero.how_s4_n">LANGKAH 04 · LAPOR</span>
+              <b data-i18n="hero.how_s4_t">Kirim Radio LoRa + Simpan Lokal</b>
+              <small data-i18n="hero.how_s4_d">Kirim laporan aman ke pos pantau; bila terhalang hutan, catatan tersimpan rapi di memori alat.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scroll-hint">
+        <i></i>
+        <span data-i18n="hero.scroll">GULIR KE BAWAH</span>
+      </div>
+    </section>
+
+    <!-- Hazard Warning Ribbon -->
+    <div class="hazard" aria-hidden="true">
+      <div class="hazard-track">
+        <span data-i18n="haz.1">BUKAN SISTEM PERINGATAN KEBAKARAN HUTAN</span>
+        <span data-i18n="haz.2">FOKUS: KEANDALAN PEMANTAUAN HIDROLOGI</span>
+        <span data-i18n="haz.3">DATA UJI: 9 LOGGER SEBANGAU 2019–2020 (DOI 10.5518/960)</span>
+        <span data-i18n="haz.4">CONTOH KONTRA BB3: RECALL V8 60% VS FIXED 6H 100%</span>
+        <span data-i18n="haz.5">ENERGI ADALAH MODEL SIMULASI — BELUM DIUKUR DI HARDWARE</span>
+        <span data-i18n="haz.6">KONSEP ESP32-S3 + LORA SX1278 + SUMUR PANTAU</span>
+        <span data-i18n="haz.1">BUKAN SISTEM PERINGATAN KEBAKARAN HUTAN</span>
+        <span data-i18n="haz.2">FOKUS: KEANDALAN PEMANTAUAN HIDROLOGI</span>
+        <span data-i18n="haz.3">DATA UJI: 9 LOGGER SEBANGAU 2019–2020 (DOI 10.5518/960)</span>
+        <span data-i18n="haz.4">CONTOH KONTRA BB3: RECALL V8 60% VS FIXED 6H 100%</span>
+        <span data-i18n="haz.5">ENERGI ADALAH MODEL SIMULASI — BELUM DIUKUR DI HARDWARE</span>
+        <span data-i18n="haz.6">KONSEP ESP32-S3 + LORA SX1278 + SUMUR PANTAU</span>
+      </div>
+    </div>
+
+    <!-- ==================== 01 // PROBLEM & CONTEXT ==================== -->
+    <section id="masalah">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s1.no">01 / MASALAH</div>
+          <div>
+            <div class="eyebrow" data-i18n="s1.eye">MENGAPA RISET INI ADA?</div>
+            <h2 class="sec-title" data-i18n="s1.title">Dilema Baterai vs Momen Kritis di Lahan Gambut</h2>
+            <p class="sec-lead" data-i18n="s1.lead">Lahan gambut tropis yang terdrainase mudah mengalami perubahan muka air secara cepat. Namun di tengah hutan tanpa listrik PLN dan sinyal seluler, sebuah sensor harus bertahan berminggu-minggu dengan baterai terbatas.</p>
+            <div class="brief-box">
+              <div class="ico">💡</div>
+              <p><b data-i18n="s1.layman_b">Intisari Konsep:</b> <span data-i18n="s1.layman_t">Bayangkan menjaga bendungan hutan di tengah malam hanya berbekal senter dan jam weker. Mengecek tiap 3 jam menangkap setiap perubahan mendadak, tetapi baterainya cepat terkuras. Sebaliknya, tidur terlalu lama membuat lonjakan air berisiko terlewat sebelum alarm berbunyi.</span></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3" data-stagger="100">
+          <article class="card spot tilt feature">
+            <span class="k" data-i18n="s1.c1_k">FAKTOR 01</span>
+            <div class="ico-lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></div>
+            <h3 data-i18n="s1.c1_t">Drainase Mengubah Respons Air</h3>
+            <p data-i18n="s1.c1_p">Studi literatur [2]–[4] menunjukkan kawasan gambut berhutan, terdrainase, dan bersekat kanal merespons hujan secara berbeda. Muka air menjadi indikator lingkungan penting — meski bukan label kejadian kebakaran langsung.</p>
+          </article>
+          <article class="card spot tilt feature">
+            <span class="k" data-i18n="s1.c2_k">FAKTOR 02</span>
+            <div class="ico-lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h.01M7 20v-4m5 4v-8m5 8V8m5 12V4"/></svg></div>
+            <h3 data-i18n="s1.c2_t">Pengukuran Terisolasi & Intermiten</h3>
+            <p data-i18n="s1.c2_p">Di lapangan gambut terpencil, konektivitas radio terganggu vegetasi dan pembacaan sensor bisa hilang (missing data). Pengukuran yang terlewat tidak bisa diciptakan ulang oleh algoritma apa pun.</p>
+          </article>
+          <article class="card spot tilt feature">
+            <span class="k" data-i18n="s1.c3_k">FAKTOR 03</span>
+            <div class="ico-lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+            <h3 data-i18n="s1.c3_t">Trade-Off Interval Sampling</h3>
+            <p data-i18n="s1.c3_p">Sampling tetap (Fixed 3h) akurat tetapi boros energi. Jadwal tidur agresif (mis. 12h) menghemat baterai tetapi menyebabkan <span data-term="Aliasing">aliasing</span> — melewatkan perubahan cepat. Diperlukan kompromi yang terkendali.</p>
+          </article>
+        </div>
+
+        <div class="chain reveal">
+          <div class="chain-step">
+            <span class="n" data-i18n="s1.chain1_n">TAHAP 01</span>
+            <h4 data-i18n="s1.chain1_t">Kanal & Drainase</h4>
+            <p data-i18n="s1.chain1_p">Mengubah retensi air tanah di gambut tropis Sebangau.</p>
+          </div>
+          <div class="chain-step">
+            <span class="n" data-i18n="s1.chain2_n">TAHAP 02</span>
+            <h4 data-i18n="s1.chain2_t">Episode Hidrologi</h4>
+            <p data-i18n="s1.chain2_p">Perubahan |Δx| ≥ 5 cm antar slot 3 jam (proksi pengukuran).</p>
+          </div>
+          <div class="chain-step">
+            <span class="n" data-i18n="s1.chain3_n">TAHAP 03</span>
+            <h4 data-i18n="s1.chain3_t">Batas Daya & Sinyal</h4>
+            <p data-i18n="s1.chain3_p">Node off-grid harus menyeimbangkan jumlah baca & packet retry.</p>
+          </div>
+          <div class="chain-step bad">
+            <span class="n" data-i18n="s1.chain4_n">BATAS KLAIM</span>
+            <h4 data-i18n="s1.chain4_t">Bukan Detektor Api</h4>
+            <p data-i18n="s1.chain4_p">Datum bersifat lokal terhadap patok sumur, bukan kedalaman permukaan seragam.</p>
+          </div>
+        </div>
+
+        <!-- Interactive Sampling Dilemma Visualizer -->
+        <div class="card spot dilemma reveal">
+          <div>
+            <div class="eyebrow" style="margin-bottom:6px" data-i18n="s1.sim_pol_lbl">PILIH KEBIJAKAN SAMPLING</div>
+            <h3 style="font-size:22px;margin-bottom:6px" data-i18n="s1.sim_title">Simulator Interaktif: Rasakan Trade-Off Sampling Secara Langsung</h3>
+            <p style="font-size:14px;margin-bottom:14px" data-i18n="s1.sim_sub">Geser kebijakan di bawah dan amati bagaimana frekuensi bangun memengaruhi deteksi lonjakan air (≥5 cm) serta jumlah pembacaan sensor.</p>
+            <canvas id="dilemmaCanvas" class="dilemma-canvas" width="660" height="220"></canvas>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="seg" id="dilemmaPolSeg">
+              <button type="button" data-pol="Fixed_3h">Fixed 3h</button>
+              <button type="button" data-pol="Fixed_6h">Fixed 6h</button>
+              <button type="button" data-pol="Adaptive_V6">V6</button>
+              <button type="button" data-pol="Safety_V8" class="is-on">Safety V8</button>
+            </div>
+            <div class="meter">
+              <div class="meter-row">
+                <span data-i18n="s1.sim_reads">Pembacaan</span>
+                <div class="bar c"><i id="dilReadsBar" style="width:45%"></i></div>
+                <b id="dilReadsVal" class="mono">0</b>
+              </div>
+              <div class="meter-row">
+                <span data-i18n="s1.sim_det">Recall Episode</span>
+                <div class="bar r"><i id="dilDetBar" style="width:92%"></i></div>
+                <b id="dilDetVal" class="mono">0%</b>
+              </div>
+              <div class="meter-row">
+                <span data-i18n="s1.sim_eng">Energi Model</span>
+                <div class="bar e"><i id="dilEngBar" style="width:70%"></i></div>
+                <b id="dilEngVal" class="mono">0 mAh</b>
+              </div>
+            </div>
+            <div class="mono" style="font-size:11.5px;color:var(--text-3)" id="dilSiteNote" data-i18n="s1.sim_note">Dataset demo: Drained AA1 (30% periode akhir · 8 lonjakan air ≥ 5 cm)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 02 // ARCHITECTURE & 3D EXPLODED ANATOMY ==================== -->
+    <section id="arsitektur">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s2.no">02 / ARSITEKTUR & 3D</div>
+          <div>
+            <div class="eyebrow" data-i18n="s2.eye">RANCANGAN PERANGKAT KERAS & PIPELINE</div>
+            <h2 class="sec-title" data-i18n="s2.title">Anatomi Node 3D & Aliran Data 5 Lapis</h2>
+            <p class="sec-lead" data-i18n="s2.lead">SYLVARIS memisahkan tugas pengukuran ber-timestamp, penjadwalan cerdas di tepi (edge), dan transmisi radio LoRa dengan pencatatan lokal agar data hilang tetap teraudit.</p>
+            <div class="brief-box">
+              <div class="ico">🔧</div>
+              <p><b data-i18n="s2.layman_b">Panduan Visualisasi 3D &amp; Simulasi:</b> <span data-i18n="s2.layman_t">Model 3D ini adalah desain konsep teknik (belum dirakit fisik). Putar Simulasi 72 Detik agar setiap komponen dari nomor 01 hingga 14 membuka perlahan dan dijelaskan fungsinya dengan mudah, atau tarik tuas Explode dan putar 360° sesuka Anda.</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5-Layer Architecture Stack (Paper Fig. 1) -->
+        <p class="mono" style="font-size:12px;color:var(--text-3);margin-bottom:14px" data-i18n="s2.stack_hint">Klik salah satu dari 5 lapis arsitektur (Fig. 1 paper) untuk melihat spesifikasi & perannya:</p>
+        <div class="arch reveal">
+          <div class="stack" id="archStack"></div>
+          <div class="card spot hud-corners arch-detail" id="archDetail">
+            <i class="hc tl"></i><i class="hc tr"></i><i class="hc bl"></i><i class="hc br"></i>
+            <span class="chip"><i class="dot"></i><span id="adBadge">—</span></span>
+            <h3 id="adTitle">—</h3>
+            <p id="adDesc">—</p>
+            <ul id="adBullets"></ul>
+            <div class="status-row" id="adParts"></div>
+          </div>
+        </div>
+
+        <!-- Interactive 3D Exploded Anatomy Inspector + 72s Simulation Theater -->
+        <div class="anat-wrap reveal" id="anatomi">
+          <div class="card spot" style="padding:14px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="mono lime" style="font-size:11.5px;letter-spacing:.12em" data-i18n="s2.vp_title">BENGKEL 3D CAD INTERAKTIF (PUTAR 360°)</span>
+              <div class="seg" id="anatModeSeg">
+                <button type="button" data-mode="solid" class="is-on" data-i18n="s2.mode_solid">Solid</button>
+                <button type="button" data-mode="wire" data-i18n="s2.mode_wire">Rangka</button>
+                <button type="button" data-mode="xray" data-i18n="s2.mode_xray">X-Ray</button>
+              </div>
+            </div>
+            <div style="position:relative;height:430px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:radial-gradient(circle at 50% 45%,rgba(45,245,166,.12),rgba(2,6,5,.72) 75%)" data-3d-stage>
+              <div class="loader-3d" id="anatLoader" data-i18n="hero.3d_boot">MEMUAT VISUAL 3D...</div>
+              <div id="anatViewport" style="position:absolute;inset:0"></div>
+              <div class="cine-sub-pill" id="anatTourSub" style="bottom:14px"><b>01 · GAMBUT &amp; SUMUR</b><span>—</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+              <label class="field">
+                <span><span data-i18n="hero.explode_lbl">EXPLODE</span> <b id="anatExpPct">35%</b></span>
+                <input type="range" id="anatExplode" min="0" max="100" value="35" style="--p:35%">
+              </label>
+              <label class="field">
+                <span><span data-i18n="s2.water_ctrl">Simulasi Tinggi Air Sumur</span> <b id="anatWatPct">55%</b></span>
+                <input type="range" id="anatWater" min="5" max="95" value="55" style="--p:55%">
+              </label>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button type="button" class="btn btn-sm" id="anatTourQuick" style="padding:7px 12px;font-size:12px">▶ <span data-i18n="tour.play">Putar Simulasi 72s</span></button>
+              <button type="button" class="btn btn-ghost btn-sm" data-cam="iso" data-i18n="s2.cam_iso">Isometrik</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-cam="front" data-i18n="s2.cam_front">Depan</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-cam="top" data-i18n="s2.cam_top">Atas</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-cam="side" data-i18n="s2.cam_side">Samping</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="anatLabelsBtn" data-i18n="hero.labels_btn">Pin</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="anatPingBtn" data-i18n="hero.ping_btn">Tes LoRa</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="anatResetBtn" data-i18n="hero.reset_btn">Reset</button>
+            </div>
+          </div>
+
+          <div class="card spot part-inspect">
+            <div>
+              <div class="eyebrow" style="margin-bottom:10px" data-i18n="s2.anat_title">Daftar 14 Komponen Alat (Klik untuk Menyorot di Model 3D)</div>
+              <div class="anat-pills" id="anatPills"></div>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)" id="partCard">
+              <div class="spec-row">
+                <span class="tag ok" id="pcNo">05</span>
+                <span class="tag info" id="pcLayer">Komputasi</span>
+                <span class="tag warn" id="pcStatus">Retail [12]</span>
+                <span class="tag" id="pcPrice">Rp117.500</span>
+              </div>
+              <h3 id="pcName">ESP32-S3 Microcontroller</h3>
+              <div class="mono" style="font-size:12px;color:var(--cyan);margin-bottom:8px" id="pcSpec">—</div>
+              <p style="font-size:14.5px;margin:0" id="pcRole">—</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 72-Second Choreographed Hardware Tour Director Deck -->
+        <div class="cine-deck reveal" id="sim72s">
+          <div class="cine-top">
+            <div>
+              <span class="chip cyan"><i class="dot"></i><span data-i18n="tour.badge">SIMULASI RAKITAN 3D TERPANDU · 72 DETIK (SEMUA 14 KOMPONEN)</span></span>
+              <p class="mono" style="font-size:11.5px;color:var(--text-3);margin:8px 0 0" data-i18n="tour.hint">Putar bebas model 3D kapan saja dengan mouse/sentuhan, atau tekan Putar 72s untuk melihat seluruh 14 komponen terbongkar perlahan disertai penjelasan fungsinya (bisa diunduh ke video .webm lengkap dengan nomor komponen!).</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn btn-sm" id="cinePlayBtn">▶ <span data-i18n="tour.play">Putar Simulasi 72s</span></button>
+              <button type="button" class="btn btn-ghost btn-sm" id="cineStopBtn" data-i18n="tour.stop">Keluar Tour</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="cineExportBtn">⬇ <span data-i18n="tour.export">Unduh Video 72s (.webm)</span></button>
+            </div>
+          </div>
+
+          <div class="cine-bar-row">
+            <span class="mono lime" style="font-size:12px;min-width:104px" id="cineTime">00.0s / 72.0s</span>
+            <div class="cine-progress" id="cineProgress" title="Seek timeline (0-72s)">
+              <div class="cine-progress-fill" id="cineFill"></div>
+            </div>
+            <span class="tag info" id="cineStateTag">READY · 9H</span>
+          </div>
+
+          <div class="cine-ticks" id="cineChapters"></div>
+
+          <div class="cine-hud-grid">
+            <div class="cine-caption">
+              <div class="phase"><i></i><span id="cinePhaseTitle">01 · Lapisan Gambut [14] &amp; Sumur Pantau [12]</span></div>
+              <p id="cinePhaseBody">—</p>
+            </div>
+            <div class="cine-scope-box">
+              <div class="cine-scope-meta">
+                <span data-i18n="tour.scope_lbl">GRAFIK TINGGI AIR X(T) &amp; LAJU R(T)</span>
+                <span id="cineScopeStat">0.08 mA · 9H</span>
+              </div>
+              <canvas id="cineScope" class="cine-scope" width="460" height="64"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 03 // SAFETY V8 SCHEDULER & V4 AUDIT ==================== -->
+    <section id="scheduler">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s3.no">03 / LOGIKA V8 & AUDIT ML</div>
+          <div>
+            <div class="eyebrow" data-i18n="s3.eye">ALGORITMA PENJADWALAN & FALLBACK</div>
+            <h2 class="sec-title" data-i18n="s3.title">Aturan Deterministik V8 & Mengapa TinyML Belum Diaktifkan</h2>
+            <p class="sec-lead" data-i18n="s3.lead">Sebelum melompat ke AI/TinyML di mikrokontroler, studi menguji peramalan V4 (Persistence, Ridge, Random Forest) dan menemukan ketidakstabilan kalibrasi — sehingga kontroler V8 berpegang pada aturan laju perubahan yang transparan.</p>
+            <div class="brief-box">
+              <div class="ico">🧠</div>
+              <p><b data-i18n="s3.layman_b">Mengapa Tidak Langsung Pakai AI?</b> <span data-i18n="s3.layman_t">Banyak proyek langsung memasang AI tanpa menguji pembanding sederhana. Di riset ini, prediksi sederhana 'besok sama dengan hari ini' (Persistence) ternyata sering mengalahkan Machine Learning saat pola air bergeser drastis.</span></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="formula reveal">
+          <span class="v">r(t)</span> <span class="op">=</span> 3 · | <span class="v">x(t)</span> − <span class="v">x(t_prev)</span> | / <span class="v">Δt</span> &nbsp;&nbsp;<span style="color:var(--text-3)">[cm / 3 h]</span> &nbsp;&nbsp;|&nbsp;&nbsp;
+          <span class="v">E_sim</span> <span class="op">=</span> <span class="v">I_sleep</span>·T + <span class="v">N_read</span>·e_read + <span class="v">N_dec</span>·e_dec
+        </div>
+
+        <div class="sched reveal" style="margin-top:22px">
+          <div class="card spot" style="display:flex;flex-direction:column;gap:16px">
+            <h3 style="font-size:21px" data-i18n="s3.calc_title">Playground Aturan Scheduler Safety V8</h3>
+            <label class="field">
+              <span><span data-i18n="s3.dx_lbl">Perubahan Muka Air |Δx| (cm)</span> <b id="scDxVal">2.4 cm</b></span>
+              <input type="range" id="scDx" min="0" max="10" step="0.2" value="2.4" style="--p:24%">
+            </label>
+            <label class="field">
+              <span><span data-i18n="s3.dt_lbl">Selang Waktu Δt (jam)</span> <b id="scDtVal">3 jam</b></span>
+              <input type="range" id="scDt" min="3" max="12" step="3" value="3" style="--p:0%">
+            </label>
+            <label class="field">
+              <span><span data-i18n="s3.hold_lbl">Sisa Fast-Hold Counter</span> <b id="scHoldVal">0</b></span>
+              <input type="range" id="scHold" min="0" max="2" step="1" value="0" style="--p:0%">
+            </label>
+            <div class="field">
+              <span data-i18n="s3.miss_lbl">Sensor Gagal / Data Kosong?</span>
+              <div class="seg" id="scMissSeg">
+                <button type="button" data-miss="0" class="is-on" data-i18n="s3.miss_no">TIDAK — Data Valid</button>
+                <button type="button" data-miss="1" data-i18n="s3.miss_yes">YA — Retry 3h</button>
+              </div>
+            </div>
+
+            <div style="padding-top:12px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div>
+                <div class="mono" style="font-size:10.5px;color:var(--text-3)" data-i18n="s3.out_rate">LAJU r(t)</div>
+                <div class="result-big"><b class="cyan" id="scRateOut">2.40</b><span>cm/3h</span></div>
+              </div>
+              <div>
+                <div class="mono" style="font-size:10.5px;color:var(--text-3)" data-i18n="s3.out_next">INTERVAL BERIKUTNYA</div>
+                <div class="result-big"><b class="lime" id="scNextOut">3</b><span>h</span></div>
+              </div>
+            </div>
+            <div class="mono" style="font-size:12px" id="scAlarmOut">—</div>
+            <div class="timeline-3" id="scTimeline" title="24-hour wake schedule preview (8 slots x 3h)"></div>
+          </div>
+
+          <div class="card spot flow">
+            <svg viewBox="0 0 540 360" aria-label="Safety V8 Flowchart">
+              <path id="e1" class="edge" d="M270 50 L270 86"/>
+              <path id="eMiss" class="edge" d="M180 112 L90 112 L90 278"/>
+              <path id="eValid" class="edge" d="M360 112 L430 112 L430 154"/>
+              <path id="eFast" class="edge" d="M355 180 L195 180 L195 278"/>
+              <path id="eHold" class="edge" d="M430 206 L430 232"/>
+              <path id="eMed" class="edge" d="M355 256 L305 256 L305 278"/>
+              <path id="eSlow" class="edge" d="M465 282 L465 278"/>
+
+              <g class="node on" id="nStart"><rect x="170" y="10" width="200" height="40" rx="10"/><text x="270" y="34" text-anchor="middle" data-i18n="s3.fc_wake">BANGUN · BACA AIR x(t)</text></g>
+              <g class="node" id="nMiss"><rect x="180" y="86" width="180" height="52" rx="10"/><text x="270" y="110" text-anchor="middle" data-i18n="s3.fc_valid">DATA SENSOR VALID?</text><text x="270" y="126" text-anchor="middle" style="font-size:10px;fill:var(--text-3)" data-i18n="s3.fc_timeout">Cek error / NaN</text></g>
+              <g class="node" id="nFast"><rect x="355" y="154" width="160" height="52" rx="10"/><text x="435" y="177" text-anchor="middle" data-i18n="s3.fc_fast">r ≥ 2,0 atau hold &gt; 0?</text><text x="435" y="193" text-anchor="middle" style="font-size:10px;fill:var(--text-3)" data-i18n="s3.fc_first">atau baca valid perdana</text></g>
+              <g class="node" id="nMed"><rect x="355" y="232" width="160" height="44" rx="10"/><text x="435" y="258" text-anchor="middle" data-i18n="s3.fc_med">r ≥ 0,8 cm / 3 jam?</text></g>
+
+              <g class="node" id="n3hR"><rect x="20" y="278" width="140" height="56" rx="12"/><text x="90" y="302" text-anchor="middle" data-i18n="s3.fc_sleep3">TIDUR 3 JAM</text><text x="90" y="320" text-anchor="middle" style="font-size:10px;fill:var(--rose)" data-i18n="s3.fc_retry">Ulang · hold=2</text></g>
+              <g class="node" id="n3hF"><rect x="170" y="278" width="105" height="56" rx="12"/><text x="222" y="302" text-anchor="middle" data-i18n="s3.fc_sleep3">TIDUR 3 JAM</text><text x="222" y="320" text-anchor="middle" style="font-size:10px;fill:var(--emerald)" data-i18n="s3.fc_fast_sub">Siaga Fast-Hold</text></g>
+              <g class="node" id="n6h"><rect x="285" y="278" width="105" height="56" rx="12"/><text x="337" y="302" text-anchor="middle" data-i18n="s3.fc_sleep6">TIDUR 6 JAM</text><text x="337" y="320" text-anchor="middle" style="font-size:10px;fill:var(--cyan)" data-i18n="s3.fc_mod">Sedang</text></g>
+              <g class="node" id="n9h"><rect x="400" y="278" width="120" height="56" rx="12"/><text x="460" y="302" text-anchor="middle" data-i18n="s3.fc_sleep9">TIDUR 9 JAM</text><text x="460" y="320" text-anchor="middle" style="font-size:10px;fill:var(--lime)" data-i18n="s3.fc_quiet">Tenang (Hemat)</text></g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- V4 Forecasting & Conformal Calibration Honesty Table -->
+        <div class="card spot reveal" style="margin-top:24px">
+          <div class="eyebrow" style="margin-bottom:6px" data-i18n="s3.v4_eye">AUDIT PREDIKSI V4 &amp; KALIBRASI CONFORMAL</div>
+          <h3 style="font-size:22px;margin-bottom:6px" data-i18n="s3.v4_title">Audit Kejujuran V4: Mengapa Prediksi ML Belum Layak Dipakai</h3>
+          <p style="font-size:14px;margin-bottom:16px" data-i18n="s3.v4_sub">Evaluasi kronologis 50% train / 15% seleksi / 15% kalibrasi / 20% test dengan purging. Ukuran set kalibrasi kecil (&lt;20 sampel) &amp; pergeseran distribusi membuat interval 90% meleset di 7 dari 8 uji.</p>
+          <div class="tbl-wrap">
+            <table class="tbl" id="v4Table">
+              <thead>
+                <tr>
+                  <th data-i18n="s3.th_site">Lokasi &amp; Horizon</th>
+                  <th data-i18n="s3.th_model">Model Terpilih</th>
+                  <th class="num" data-i18n="s3.th_calib">Sampel Kalibrasi</th>
+                  <th class="num" data-i18n="s3.th_mae">Error Model (cm)</th>
+                  <th class="num" data-i18n="s3.th_pers">Error Persistence</th>
+                  <th class="num" data-i18n="s3.th_vs">Vs Persistence</th>
+                  <th class="num" data-i18n="s3.th_cov">Cakupan Nyata 90%</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 04 // DATA AUDIT ==================== -->
+    <section id="dataset">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s4.no">04 / AUDIT DATA</div>
+          <div>
+            <div class="eyebrow" data-i18n="s4.eye">DATASET RESMI UNIVERSITAS LEEDS</div>
+            <h2 class="sec-title" data-i18n="s4.title">9 Seri Logger Sebangau yang Diaudit Ketat</h2>
+            <p class="sec-lead" data-i18n="s4.lead">Data bersumber dari repositori University of Leeds (2019–2020, DOI: 10.5518/960) mencakup zona bersekat (blocked), terdrainase (drained), dan berhutan (forested). Seluruh pengukuran dipetakan ke grid 3 jam tanpa mengisi celah kosong dengan angka fiktif.</p>
+          </div>
+        </div>
+
+        <div class="audit-strip" data-stagger="80">
+          <div class="card spot kpi">
+            <div class="v emerald" data-count="9">0</div>
+            <div class="l" data-i18n="s4.k1_l">Logger Otomatis</div>
+            <div class="s" data-i18n="s4.k1_s">3 Blocked · 3 Drained · 3 Forested</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v cyan" data-count="3275">0</div>
+            <div class="l" data-i18n="s4.k2_l">Pasangan Valid Cocok</div>
+            <div class="s" data-i18n="s4.k2_s">Audit V7 pada BB1, AA1, AL0 (0 selisih)</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v lime" data-count="37">0</div>
+            <div class="l" data-i18n="s4.k3_l">Episode Referensi (Tail 30%)</div>
+            <div class="s" data-i18n="s4.k3_s">Hanya 4 episode di 3 logger hutan</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v amber" data-count="0">0</div>
+            <div class="l" data-i18n="s4.k4_l">Rekayasa Nilai Kosong</div>
+            <div class="s" data-i18n="s4.k4_s">Data hilang tetap NaN, tidak diinterpolasi fiktif</div>
+          </div>
+        </div>
+
+        <div class="callout reveal">
+          <div class="ico">⚠️</div>
+          <div>
+            <b data-i18n="s4.datum_title">Peringatan Metrologi: Datum Lokal ≠ Kedalaman Bawah Permukaan</b>
+            <p data-i18n="s4.datum_body">Berdasarkan dokumentasi teknis resmi dataset Universitas Leeds [1], angka 'absolute water-level (cm)' mengacu pada patok benchmark lokal di tiap titik pengamatan — bukan jarak seragam dari permukaan tanah gambut.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin:28px 0 18px">
+          <div class="seg" id="loggerFilter">
+            <button type="button" data-grp="all" class="is-on" data-i18n="s4.flt_all">Semua (9)</button>
+            <button type="button" data-grp="blocked" data-i18n="s4.flt_blk">Blocked / Sekat (BB1–BB3)</button>
+            <button type="button" data-grp="drained" data-i18n="s4.flt_drn">Drained / Drainase (AA1–AA3)</button>
+            <button type="button" data-grp="forested" data-i18n="s4.flt_for">Forested / Hutan (AL0, AL1, AL5)</button>
+          </div>
+        </div>
+
+        <div class="loggers" id="loggerGrid"></div>
+      </div>
+    </section>
+
+    <!-- ==================== 05 // RESULTS & LIVE ENGINE LAB ==================== -->
+    <section id="hasil">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s5.no">05 / HASIL & LAB</div>
+          <div>
+            <div class="eyebrow" data-i18n="s5.eye">PERBANDINGAN RETROSPEKTIF & SIMULASI INTERAKTIF</div>
+            <h2 class="sec-title" data-i18n="s5.title">Peta Trade-Off V8 vs Fixed 6h & Mesin Simulasi Nyata</h2>
+            <p class="sec-lead" data-i18n="s5.lead">Pada 37 episode hidrologi di 30% akhir tiap rekaman, Safety V8 mendeteksi 34/37 (91,9%) — naik +16,2 poin persentase dari V6 (28/37 = 75,7%) dan menyamai Fixed 6h, dengan penghematan energi simulasi 0,76%–3,60% terhadap Fixed 6h.</p>
+          </div>
+        </div>
+
+        <div class="big-numbers" data-stagger="90">
+          <div class="card spot kpi">
+            <div class="v emerald">91.9%</div>
+            <div class="l" data-i18n="s5.bn1">Recall Gabungan V8 (34/37)</div>
+            <div class="s" data-i18n="s5.bn1_s">Setara Fixed 6 jam (34/37)</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v lime">+16.2 pt</div>
+            <div class="l" data-i18n="s5.bn2">Kenaikan vs Adaptive V6</div>
+            <div class="s" data-i18n="s5.bn2_s">V6 hanya mendeteksi 28/37 (75,7%)</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v cyan">0.76–3.60%</div>
+            <div class="l" data-i18n="s5.bn3">Hemat Energi Simulasi vs 6h</div>
+            <div class="s" data-i18n="s5.bn3_s">13,12%–15,62% terhadap Fixed 3 jam</div>
+          </div>
+          <div class="card spot kpi">
+            <div class="v rose">60% vs 100%</div>
+            <div class="l" data-i18n="s5.bn4">Kasus Kontra Blocked BB3</div>
+            <div class="s" data-i18n="s5.bn4_s">V8 hanya 3/5 vs Fixed 6h 5/5 (100%)</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+          <div class="seg" id="scenSeg">
+            <button type="button" data-scen="nominal" class="is-on" data-i18n="s5.scen_nom">Skenario Nominal (Tanpa Fault Buatan)</button>
+            <button type="button" data-scen="every_17th_read_fails" data-i18n="s5.scen_flt">Fault Injection (Setiap Baca ke-17 Gagal)</button>
+          </div>
+          <span class="tag ok" id="parityBadge">PARITY CHECK: ...</span>
+        </div>
+
+        <div class="results reveal">
+          <div class="card spot chart-wrap">
+            <div class="eyebrow" style="margin-bottom:8px" data-i18n="s5.fig2_eye">GAMBAR 2 · PETA HEMAT ENERGI VS DETEKSI (KLIK TITIK UNTUK BUKA DI LAB)</div>
+            <div id="paretoChart"></div>
+          </div>
+          <div class="card spot tbl-wrap">
+            <div class="eyebrow" style="margin-bottom:8px" data-i18n="s5.tbl1_eye">TABEL I · PERBANDINGAN 9 STASIUN LOGGER</div>
+            <table class="tbl" id="v8Table">
+              <thead>
+                <tr>
+                  <th data-i18n="s5.th_node">Stasiun</th>
+                  <th class="num">n</th>
+                  <th class="num">6h</th>
+                  <th class="num">V6</th>
+                  <th class="num">V8</th>
+                  <th class="num" data-i18n="s5.th_save">ΔEnergi vs 6j</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="callout rose reveal" id="faultCaveat">
+          <div class="ico">🔬</div>
+          <div>
+            <b data-i18n="s5.bn4">Kasus Kontra BB3 &amp; Catatan Uji Fault</b>
+            <p data-i18n="s5.fault_warn">Mengganti setiap pembacaan terjadwal ke-17 menggeser waktu kalender kegagalan secara berbeda antar kebijakan. Di BB1, V8 kehilangan keunggulan energi (-0,41% vs 6h), sedangkan di BB3 recall bergeser ke 80% semata akibat pergeseran fase jadwal.</p>
+          </div>
+        </div>
+
+        <!-- Live Interactive Simulation Lab -->
+        <div class="card spot reveal" style="margin-top:26px">
+          <div class="eyebrow" style="margin-bottom:6px" data-i18n="s5.lab_eye">MESIN PYTHON V8 BERJALAN LANGSUNG DI BROWSER</div>
+          <h3 style="font-size:24px;margin-bottom:6px" data-i18n="s5.lab_title">Simulator Asli — Uji Sendiri Logika V8 dengan Parameter Bebas</h3>
+          <p style="font-size:14px;margin-bottom:20px" data-i18n="s5.lab_sub">Ubah parameter logger, ambang laju cepat/sedang, fast-hold, serta injeksi fault. Mesin JavaScript di halaman ini adalah port 1:1 dari run_sylvaris_v8.py.</p>
+
+          <div class="lab">
+            <div class="lab-ctrl">
+              <label class="field">
+                <span data-i18n="s5.lab_site_lbl">Pilih Stasiun Logger</span>
+                <select id="labSite"></select>
+              </label>
+              <label class="field">
+                <span data-i18n="s5.lab_pol_lbl">Pilih Kebijakan Jadwal</span>
+                <select id="labPolicy">
+                  <option value="Safety_V8" data-i18n="s5.opt_v8">Safety_V8 (Pintar 3 / 6 / 9 jam + Fast-Hold)</option>
+                  <option value="Fixed_6h" data-i18n="s5.opt_6h">Fixed_6h (Rutin Setiap 6 Jam)</option>
+                  <option value="Adaptive_V6" data-i18n="s5.opt_v6">Adaptive_V6 (Konfigurasi Awal)</option>
+                  <option value="Fixed_3h" data-i18n="s5.opt_3h">Fixed_3h (Referensi Terpadat 3 Jam)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span><span data-i18n="s5.lab_rfast">Batas Cepat r_fast</span> <b id="labFastV">2.0 cm/3h</b></span>
+                <input type="range" id="labFast" min="0.5" max="6" step="0.5" value="2.0" style="--p:27%">
+              </label>
+              <label class="field">
+                <span><span data-i18n="s5.lab_rmed">Batas Sedang r_med</span> <b id="labMedV">0.8 cm/3h</b></span>
+                <input type="range" id="labMed" min="0.2" max="3" step="0.2" value="0.8" style="--p:21%">
+              </label>
+              <label class="field">
+                <span><span data-i18n="s5.lab_hold">Jumlah Kunci Fast-Hold</span> <b id="labHoldV">2</b></span>
+                <input type="range" id="labHold" min="0" max="4" step="1" value="2" style="--p:50%">
+              </label>
+              <label class="field">
+                <span><span data-i18n="s5.lab_fault">Error Buatan (1 dari N baca; 0=Mati)</span> <b id="labFaultV">0</b></span>
+                <input type="range" id="labFault" min="0" max="25" step="1" value="0" style="--p:0%">
+              </label>
+              <button type="button" class="btn btn-ghost btn-sm" id="labResetBtn" data-i18n="s5.lab_reset">Kembalikan Standar Paper V8</button>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="chart-wrap" id="labChart"></div>
+              <div class="legend">
+                <span><i style="background:var(--cyan)"></i><span data-i18n="s5.leg_water">Muka Air (grid 3 jam)</span></span>
+                <span><i style="background:var(--amber)"></i><span data-i18n="s5.leg_ref">Kejadian Uji (|Δx|≥5cm)</span></span>
+                <span><i style="background:var(--emerald)"></i><span data-i18n="s5.leg_alarm">Alarm Cocok / Baca Valid</span></span>
+                <span><i style="background:var(--rose)"></i><span data-i18n="s5.leg_miss">Error / Terlewat</span></span>
+              </div>
+              <div class="terminal">
+                <div class="terminal-head"><i></i><i></i><i></i><span>sylvaris_v8_replay.py --live</span></div>
+                <div class="terminal-body" id="labTerm"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 06 // BOM, ROADMAP, MITIGATION & EVIDENCE ==================== -->
+    <section id="implementasi">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s6.no">06 / BOM & TATA KELOLA</div>
+          <div>
+            <div class="eyebrow" data-i18n="s6.eye">RENCANA IMPLEMENTASI, BIAYA & BATAS KLAIM</div>
+            <h2 class="sec-title" data-i18n="s6.title">Kalkulator BOM Indikatif, Mitigasi & Gerbang Validasi</h2>
+            <p class="sec-lead" data-i18n="s6.lead">Memisahkan secara tegas harga ritel yang terverifikasi (ESP32-S3 Rp117.500 & LoRa SX1278 Rp74.800) dari pos perencanaan anggaran (engineering allowance) serta syarat wajib sebelum mengklaim kesiapan lapangan.</p>
+          </div>
+        </div>
+
+        <div class="bom reveal">
+          <div class="card spot">
+            <div class="donut-wrap">
+              <div id="bomDonut"></div>
+              <div class="donut-center">
+                <b id="bomPerNode">Rp1.062.300</b>
+                <small data-i18n="s6.bom_pernode_lbl">PER NODE (IDR)</small>
+              </div>
+            </div>
+            <div class="total-box">
+              <small class="mono" style="color:var(--text-3)" data-i18n="s6.bom_tot_lbl">TOTAL SKENARIO PILOT</small>
+              <div class="v" id="bomTotal">Rp13.653.950</div>
+              <div class="calc-lines" id="bomLines"></div>
+            </div>
+          </div>
+
+          <div class="card spot" style="display:flex;flex-direction:column;gap:16px">
+            <h3 style="font-size:20px" data-i18n="s6.bom_cfg_title">Atur Skenario Jumlah Alat</h3>
+            <label class="field">
+              <span><span data-i18n="s6.bom_nodes">Jumlah Node Sensor</span> <b id="bomNodesV">10</b></span>
+              <input type="range" id="bomNodes" min="1" max="50" value="10" style="--p:18%">
+            </label>
+            <label class="field">
+              <span><span data-i18n="s6.bom_cont">Dana Kontinjensi (%)</span> <b id="bomContV">15%</b></span>
+              <input type="range" id="bomCont" min="0" max="30" value="15" style="--p:50%">
+            </label>
+            <div class="field">
+              <span data-i18n="s6.bom_probe">Mode Sensor Level Air</span>
+              <div class="seg" id="bomProbeSeg">
+                <button type="button" data-probe="allow" class="is-on" data-i18n="s6.bom_probe_allow">Allowance Rp350rb</button>
+                <button type="button" data-probe="comm" data-i18n="s6.bom_probe_comm">HPT604-BC Rp3,9jt [14]</button>
+              </div>
+            </div>
+            <p style="font-size:12.5px;color:var(--text-3);margin:0" data-i18n="s6.bom_note">*Skenario 10 node standar (Rp10.623.000) + 1 Gateway prospektif (Rp1.250.000) + 15% kontinjensi = Rp13.653.950. Ini adalah skenario perencanaan, BUKAN penawaran harga vendor.</p>
+          </div>
+
+          <div class="card spot tbl-wrap">
+            <div class="eyebrow" style="margin-bottom:8px" data-i18n="s6.tbl2_eye">TABEL II · RINCIAN KOMPONEN / 1 NODE</div>
+            <table class="tbl" id="bomTable">
+              <thead><tr><th data-i18n="s6.th_comp">Komponen</th><th class="num" data-i18n="s6.th_rp">Harga (Rp)</th><th data-i18n="s6.th_stat">Keterangan</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Staged Field Roadmap -->
+        <h3 style="font-size:26px;margin:56px 0 18px" data-i18n="s6.road_title">Tahapan Validasi Lapangan Berjenjang</h3>
+        <div class="roadmap reveal" id="roadmapGrid"></div>
+
+        <!-- Table III Flip Cards -->
+        <h3 style="font-size:26px;margin:56px 0 18px" data-i18n="s6.fail_title">Matriks Risiko & Mitigasi (Klik / Arahkan Kursor untuk Membalik Kartu)</h3>
+        <div class="fail-grid" id="failGrid"></div>
+
+        <!-- Acceptance Gates G1-G3 -->
+        <h3 style="font-size:26px;margin:56px 0 18px" data-i18n="s6.gates_title">Tiga Gerbang Penerimaan (Acceptance Gates) Wajib</h3>
+        <div class="gates reveal" id="gatesGrid"></div>
+
+        <!-- Table IV Evidence Boundary Matrix -->
+        <h3 style="font-size:26px;margin:56px 0 18px" data-i18n="s6.claims_title">Tabel IV — Batas Bukti & Kejujuran Klaim Ilmiah</h3>
+        <div class="claims reveal" id="claimsGrid"></div>
+      </div>
+    </section>
+
+    <!-- ==================== 07 // TEAM & ORG CHART ==================== -->
+    <section id="tim">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s7.no">07 / TIM & JOBDESK</div>
+          <div>
+            <div class="eyebrow" data-i18n="s7.eye">STRUKTUR ORGANISASI & PEMBAGIAN KERJA</div>
+            <h2 class="sec-title" data-i18n="s7.title">Struktur Kepemimpinan, Peran Rekayasa & Matriks RACI</h2>
+            <p class="sec-lead" data-i18n="s7.lead">Naskah ini disusun sebagai paper individu oleh Bimo Satrio (Teknik Komputer, FILKOM Universitas Brawijaya) selaku Ketua Tim, Penulis Tunggal, dan Perancang Utama Website serta Dashboard 3D. Untuk tahap validasi prototipe lapangan & hilirisasi berikutnya, berikut struktur pembagian jobdesk fungsional tim yang dirancang.</p>
+          </div>
+        </div>
+
+        <p class="mono cyan reveal" style="font-size:12px;margin-bottom:24px;text-align:center" data-i18n="s7.click_hint">Klik kartu peran untuk membuka rincian Jobdesk, Tanggung Jawab Teknis & KPI ↗</p>
+
+        <div class="org reveal" id="orgWrap"></div>
+
+        <div class="card spot tbl-wrap raci reveal">
+          <h3 style="font-size:20px;margin-bottom:14px" data-i18n="s7.raci_title">Matriks Tanggung Jawab Fungsional (RACI Matrix)</h3>
+          <table class="tbl" id="raciTable"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 08 // REFERENCES ==================== -->
+    <section id="referensi">
+      <div class="container">
+        <div class="sec-head reveal">
+          <div class="sec-no" data-i18n="s8.no">08 / REFERENSI</div>
+          <div>
+            <div class="eyebrow" data-i18n="s8.eye">PUSTAKA PRIMER & DATASHEET [1]–[14]</div>
+            <h2 class="sec-title" data-i18n="s8.title">Sumber Data, Literatur Gambut, TinyML & Komponen</h2>
+            <p class="sec-lead" data-i18n="s8.lead">Seluruh klaim desain merujuk langsung pada dataset resmi University of Leeds, jurnal hidrologi gambut Kalimantan, literatur Conformal Prediction, serta lembar data resmi pabrik.</p>
+          </div>
+        </div>
+        <div class="refs reveal" id="refsGrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div>
+          <img src="assets/img/logo-full.svg" alt="SYLVARIS The Expert Trade-Off" style="height:56px;margin-bottom:16px">
+          <p style="font-size:14px;max-width:360px" data-i18n="foot.desc">Arsitektur pemantauan hidrologi gambut off-grid dengan penjadwalan sadar-keandalan. Studi desain yang jujur, dapat direproduksi, dan ramah inspeksi.</p>
+        </div>
+        <div>
+          <h5 data-i18n="foot.nav">Navigasi Cepat</h5>
+          <a href="#masalah" data-i18n="nav.problem">01 // MASALAH</a>
+          <a href="#arsitektur" data-i18n="nav.arch">02 // ARSITEKTUR & 3D</a>
+          <a href="#scheduler" data-i18n="nav.v8">03 // LOGIKA V8</a>
+          <a href="#hasil" data-i18n="nav.results">05 // HASIL & LAB</a>
+        </div>
+        <div>
+          <h5 data-i18n="foot.proj">Artefak & Repositori</h5>
+          <a href="dashboard.html" data-i18n="nav.dash_btn">Dashboard 3D & Replay</a>
+          <a href="https://github.com/bimskuy1205/TheExpertTrade-Off" target="_blank" rel="noopener">GitHub · TheExpertTrade-Off</a>
+          <a href="https://doi.org/10.5518/960" target="_blank" rel="noopener">University of Leeds DOI 10.5518/960</a>
+          <a href="#tim" data-i18n="nav.team">07 // TIM & JOBDESK</a>
+        </div>
+        <div>
+          <h5 data-i18n="foot.ack">Kepatuhan Ilmiah</h5>
+          <p style="font-size:13px" data-i18n="foot.ack_txt">Data: Putra, Holden & Baird (2021) DOI 10.5518/960 (CC BY 4.0). Bukan alat prediksi kebakaran hutan operasional.</p>
+          <p class="mono" style="font-size:11.5px;color:var(--lime)">Bimo Satrio · Computer Engineering UB · 2026</p>
+        </div>
+      </div>
+      <div class="foot-big">SYLVARIS</div>
+    </div>
+  </footer>
+
+  <!-- Persistent Bottom Telemetry Dock -->
+  <div class="dock">
+    <span>SEC <b id="dockSec">HERO</b></span>
+    <i class="sep"></i>
+    <span class="hide-sm">PTR <b id="dockPtr">0000·0000</b></span>
+    <i class="sep hide-sm"></i>
+    <span>SCROLL <b id="dockPct">0%</b></span>
+    <i class="sep"></i>
+    <span>PARITY <b id="dockParity">72/72 ✓</b></span>
+    <i class="sep"></i>
+    <a href="dashboard.html" class="lime" data-i18n="nav.dash_btn">Dashboard 3D</a>
+  </div>
+
+  <!-- Team Role Detail Modal -->
+  <div class="modal" id="roleModal" aria-hidden="true">
+    <div class="card hud-corners modal-box">
+      <i class="hc tl"></i><i class="hc tr"></i><i class="hc bl"></i><i class="hc br"></i>
+      <button type="button" class="icon-btn modal-close" id="modalClose" aria-label="Close">✕</button>
+      <div class="mono lime" style="font-size:11px;letter-spacing:.14em" id="mBadge">—</div>
+      <h3 id="mTitle">—</h3>
+      <p id="mShort">—</p>
+      <h5 data-i18n="s7.m_duties_h">JOBDESK &amp; TANGGUNG JAWAB</h5>
+      <ul id="mDuties"></ul>
+      <h5 data-i18n="s7.m_kpis_h">INDIKATOR KEBERHASILAN (KPI)</h5>
+      <ul id="mKpis"></ul>
+    </div>
+  </div>
+
+  <script src="assets/data/loggers.js"></script>
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/site.js"></script>
+  <script src="assets/js/mesh.js"></script>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+/* ==========================================================================
+   SYLVARIS — Command Dashboard & 3D Digital Twin Layout
+   Inherits variables & visual grammar from style.css
+   ========================================================================== */
+body[data-page="dash"] { padding-top: calc(28px + var(--nav-h)); min-height: 100vh; }
+
+.dash-shell {
+  width: min(1480px, calc(100% - 28px));
+  margin: 14px auto 48px;
+  display: grid;
+  grid-template-columns: 330px 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.dash-col { display: flex; flex-direction: column; gap: 16px; }
+.dash-panel { padding: 18px; border-radius: var(--r); background: var(--g-card), var(--card); border: 1px solid var(--line); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+.dash-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.dash-head span { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em; color: var(--lime); text-transform: uppercase; }
+.dash-head small { font-family: var(--f-mono); font-size: 10px; color: var(--text-3); }
+
+/* 3D twin stage in dashboard */
+.twin-stage {
+  position: relative;
+  height: 520px;
+  border-radius: var(--r);
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, rgba(45, 245, 166, 0.14), rgba(3, 8, 7, 0.65) 70%);
+  border: 1px solid var(--line);
+}
+[data-theme="light"] .twin-stage {
+  background: radial-gradient(circle at 50% 42%, rgba(0, 168, 107, 0.12), rgba(226, 236, 224, 0.8) 70%);
+}
+.twin-stage .viewport { position: absolute; inset: 0; }
+.twin-toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(3, 8, 7, 0.55); border: 1px solid var(--line);
+}
+[data-theme="light"] .twin-toolbar { background: rgba(255, 255, 255, 0.78); }
+.twin-slider { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 190px; }
+.twin-slider label { font-family: var(--f-mono); font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+
+/* Anatomy drawer inside 3D column */
+.dash-anat { display: grid; grid-template-columns: 1fr 1.15fr; gap: 14px; margin-top: 14px; }
+.dash-anat-list { display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto; padding-right: 4px; }
+.dash-anat-detail { padding: 14px; border-radius: 12px; background: rgba(2, 6, 5, 0.45); border: 1px solid var(--line); }
+[data-theme="light"] .dash-anat-detail { background: rgba(255, 255, 255, 0.6); }
+.dash-anat-detail h4 { font-size: 18px; margin: 6px 0; }
+.dash-anat-detail p { font-size: 13px; margin: 0; }
+
+/* KPI strip inside center-bottom */
+.dash-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.dkpi { padding: 12px 14px; border-radius: 12px; background: rgba(2, 6, 5, 0.45); border: 1px solid var(--line); }
+[data-theme="light"] .dkpi { background: rgba(255, 255, 255, 0.65); }
+.dkpi small { display: block; font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-3); text-transform: uppercase; }
+.dkpi b { display: block; font-family: var(--f-display); font-size: 22px; margin-top: 4px; color: var(--text); }
+
+/* Upload dropzone */
+.dropzone {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;
+  border-radius: 12px; border: 1px dashed var(--line-2); background: rgba(45, 245, 166, 0.04);
+  font-family: var(--f-mono); font-size: 11.5px; color: var(--emerald); cursor: pointer; text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.dropzone:hover { border-color: var(--lime); background: rgba(214, 238, 121, 0.08); }
+.dropzone input { display: none; }
+
+/* Transparency ledger */
+.ledger { display: grid; gap: 8px; }
+.ledger-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+.ledger-row:last-child { border-bottom: 0; }
+.ledger-row span { color: var(--text-3); font-family: var(--f-mono); font-size: 11px; }
+.ledger-row strong { font-family: var(--f-mono); font-size: 11.5px; color: var(--text); text-align: right; }
+
+/* Playback bar */
+.play-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+@media (max-width: 1240px) {
+  .dash-shell { grid-template-columns: 300px 1fr; }
+  .dash-col.right { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 860px) {
+  .dash-shell { grid-template-columns: 1fr; }
+  .dash-col.right { grid-column: auto; grid-template-columns: 1fr; }
+  .dash-anat { grid-template-columns: 1fr; }
+  .dash-kpis { grid-template-columns: repeat(2, 1fr); }
+  .twin-stage { height: 390px; }
+}

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DF5A6"/>
+      <stop offset=".55" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#9D7BFF"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="110" y1="0" x2="410" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E9FFF6"/>
+      <stop offset=".6" stop-color="#BFF8FF"/>
+      <stop offset="1" stop-color="#C9B8FF"/>
+    </linearGradient>
+    <linearGradient id="lf2" x1="48" y1="18" x2="48" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DF5A6" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity=".04"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0 0) scale(1.5)">
+    <path d="M32 6.5 53.5 19v26L32 57.5 10.5 45V19Z" stroke="url(#g1)" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M10.5 25H5.5M10.5 32H4M10.5 39H5.5M53.5 25h5M53.5 32H60M53.5 39h5" stroke="url(#g1)" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M32 14.5c11 6.5 12.5 22 0 34.5-12.5-12.5-11-28 0-34.5Z" fill="url(#lf2)" stroke="url(#g1)" stroke-width="1.8"/>
+    <path d="M16 34h7.5l3-7 4.5 14 4-18 3 11H48" stroke="#E9FFF6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="14.5" r="2.6" fill="#FFB547"/>
+  </g>
+  <text x="112" y="56" fill="url(#g2)" font-family="'Space Grotesk','Segoe UI',sans-serif" font-size="44" font-weight="700" letter-spacing="7">SYLVARIS</text>
+  <text x="114" y="80" fill="#7FA59A" font-family="'JetBrains Mono',Consolas,monospace" font-size="12.5" letter-spacing="4.2">THE EXPERT TRADE-OFF</text>
+</svg>
