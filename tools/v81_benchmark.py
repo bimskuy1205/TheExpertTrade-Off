@@ -1,17 +1,11 @@
 """
-SYLVARIS V8.1 + Edge TinyML Complete Reproducibility Suite.
+SYLVARIS V8.1 + Strictly Split 50/20/30 Edge TinyML Reproducibility Suite.
 Frozen Safety_V8 parameters: r_fast=2.0 cm/3h, r_med=0.8 cm/3h, fast_hold=2, max_cap=9h.
-TinyML Gate (int8 quantized 12-feature Logistic Gate: 24 B static RO params + ~64 B RAM buffer, tau=0.60):
-  Trained strictly on the 70% training prefixes across all 9 nested Sebangau loggers;
-  hyperparameter C=0.01 and threshold tau=0.60 fixed from 70% train performance before 30% test eval.
-
-Runs and prints all 6 paper validation modules directly from assets/data/loggers.js (DOI: 10.5518/960):
-  1. 70% Train hydrological signature (calm plateau & pre-calm surge rate) + int8 TinyML fit & C-header export
-  2. Setting-wise (Blocked / Drained / Forested) & exploratory ablation benchmark
-  3. Wilson 95% & 10,000-resample cluster logger bootstrap 95% confidence intervals
-  4. Exploratory cutoff sensitivity sweep (3.0, 4.0, 5.0, 6.0 cm)
-  5. Timestamp-matched fault injection (1%, 5%, 10% i.i.d. over 30 seeds; 9h burst; onset failure)
-  6. Decomposed energy (Cases A/B/C + extreme 95% shade), 12.15 dBm EIRP RF sweep, and 24-mo TCO
+TinyML Gate (int8_t quantized weight array + float32 accumulation & expf()):
+  - Model weights + scaler fitted STRICTLY on 0..50% training prefix (with 9-h boundary guard).
+  - Decision threshold tau=0.60 selected STRICTLY on disjoint 50..70% closed-loop validation split.
+  - Retrospectively evaluated on 70..100% tails alongside Hybrid_Site6h (WITHOUT TinyML) to isolate causality.
+  - Compiles tools/tinyml_gate.h with gcc (if present) to verify ELF object size & Python-vs-C numerical parity.
 """
 import datetime
 import hashlib
@@ -19,9 +13,13 @@ import json
 import math
 import pathlib
 import random
+import shutil
 import statistics
+import subprocess
+import tempfile
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -45,12 +43,17 @@ def group_events(hours, gap_h=6.0):
     return [g[0] for g in groups]
 
 
-def ref_events(vals, thr=5.0):
-    hits = [i * 3 for i in range(1, len(vals)) if is_num(vals[i]) and is_num(vals[i - 1]) and abs(vals[i] - vals[i - 1]) >= thr]
+def ref_events(vals, thr=5.0, direction="both"):
+    hits = []
+    for i in range(1, len(vals)):
+        if is_num(vals[i]) and is_num(vals[i - 1]):
+            d = vals[i] - vals[i - 1]
+            if (direction == "both" and abs(d) >= thr) or (direction == "rise" and d >= thr) or (direction == "fall" and d <= -thr):
+                hits.append(i * 3)
     return group_events(hits, 6.0)
 
 
-def extract_features(vals, start_iso, i, hv, ht):
+def extract_features(vals, start_iso, i, hv, ht, include_clock=True):
     v = vals[i]
     t = i * 3
     dt1 = (t - ht[-1]) if ht else 3.0
@@ -65,53 +68,52 @@ def extract_features(vals, start_iso, i, hv, ht):
     r_hist = [abs(hv[k] - hv[k - 1]) * 3.0 / max(3.0, ht[k] - ht[k - 1]) for k in range(1, len(hv))][-8:]
     calm_frac = sum(1 for rv in r_hist if rv < 0.8) / max(1, len(r_hist)) if r_hist else 0.9
     flash_idx = (max(r_hist) if r_hist else r1) * calm_frac
-    dt_base = datetime.datetime.fromisoformat(start_iso) + datetime.timedelta(hours=t)
-    hr = dt_base.hour + dt_base.minute / 60.0
-    return [
-        r1, dx1 / max(3.0, dt1) * 3.0,
-        r2, dx2 / max(3.0, dt2) * 3.0,
-        std_r, calm_frac, flash_idx,
-        v - min(recent), max(recent) - v, v - med,
-        math.sin(2.0 * math.pi * hr / 24.0), math.cos(2.0 * math.pi * hr / 24.0),
-    ]
+    feats = [r1, dx1 / max(3.0, dt1) * 3.0, r2, dx2 / max(3.0, dt2) * 3.0, std_r, calm_frac, flash_idx, v - min(recent), max(recent) - v, v - med]
+    if include_clock:
+        hr = (datetime.datetime.fromisoformat(start_iso) + datetime.timedelta(hours=t)).hour
+        feats.extend([math.sin(2.0 * math.pi * hr / 24.0), math.cos(2.0 * math.pi * hr / 24.0)])
+    return feats
 
 
-def fit_and_quantize_tinyml(loggers, export_header=True):
-    X_70, y_70 = [], []
+def build_split_rows(loggers, strides=(1, 2, 3), include_clock=True):
+    tr_X, tr_y, tr_g, va_X, va_y, va_g = [], [], [], [], [], []
     for lg in loggers:
         cut = lg["cut"]
+        split50 = int(len(lg["values"]) * 0.50)
         vals = lg["values"]
         siso = lg["start"]
-        for stride in (1, 2, 3):
+        grp = lg["group"]
+        for st in strides:
             hv, ht = [], []
-            for i in range(0, cut - 3, stride):
+            for i in range(0, cut - 3, st):
                 if not is_num(vals[i]):
                     continue
                 if len(hv) >= 2:
-                    fut = int(
-                        any(
-                            is_num(vals[j]) and is_num(vals[j - 1]) and abs(vals[j] - vals[j - 1]) >= 5.0
-                            for j in range(i + 1, min(cut, i + 4))
-                        )
-                    )
-                    X_70.append(extract_features(vals, siso, i, hv, ht))
-                    y_70.append(fut)
-                hv.append(vals[i])
-                ht.append(i * 3)
+                    fut = int(any(is_num(vals[j]) and is_num(vals[j - 1]) and abs(vals[j] - vals[j - 1]) >= 5.0 for j in range(i + 1, min(cut, i + 4))))
+                    f = extract_features(vals, siso, i, hv, ht, include_clock)
+                    if i + 3 < split50:  # strict 9-h horizon guard so future labels cannot cross split50
+                        tr_X.append(f); tr_y.append(fut); tr_g.append(grp)
+                    elif i >= split50:
+                        va_X.append(f); va_y.append(fut); va_g.append(grp)
+                hv.append(vals[i]); ht.append(i * 3)
+    return np.array(tr_X), np.array(tr_y), tr_g, np.array(va_X), np.array(va_y), va_g
 
-    sc70 = StandardScaler().fit(X_70)
-    lr70 = LogisticRegression(class_weight="balanced", C=0.01, max_iter=500).fit(sc70.transform(X_70), y_70)
-    w_f = lr70.coef_[0] / sc70.scale_
-    b_f = float(lr70.intercept_[0]) - float(np.sum(lr70.coef_[0] * sc70.mean_ / sc70.scale_))
+
+def fit_and_quantize_tinyml(loggers, strides=(1, 2, 3), include_clock=True, export_header=True):
+    Xtr, ytr, gtr, Xva, yva, gva = build_split_rows(loggers, strides=strides, include_clock=include_clock)
+    sc = StandardScaler().fit(Xtr)
+    lr = LogisticRegression(class_weight="balanced", C=0.01, max_iter=500).fit(sc.transform(Xtr), ytr)
+    w_f = lr.coef_[0] / sc.scale_
+    b_f = float(lr.intercept_[0]) - float(np.sum(lr.coef_[0] * sc.mean_ / sc.scale_))
     scale_q = 127.0 / max(float(np.max(np.abs(w_f))), 1e-6)
     w_q = np.round(w_f * scale_q).astype(int)
 
-    if export_header:
+    if export_header and len(w_q) == 12:
         c_code = f"""#ifndef SYLVARIS_TINYML_GATE_H
 #define SYLVARIS_TINYML_GATE_H
-/* Auto-generated by tools/v81_benchmark.py from 70% Sebangau train prefixes only.
- * Static RO constants: 12 int8 weights (12 B) + 3 floats (12 B) = 24 B; RAM state: ~64 B (8-slot buffer).
- * Linear stage: 12 scalar multiply-accumulates + sigmoid + causal ring stats (pre-G1 analytic MCU allowance). */
+/* Auto-generated by tools/v81_benchmark.py from strict 0-50% Sebangau training prefix only.
+ * Static RO constants: 12 int8 weights (12 B) + 3 floats (12 B) = 24 B; RAM ring state: ~64 B.
+ * Accumulates in float32 using expf() (quantized weights + float execution). Threshold tau=0.60 validated on 50-70% slice. */
 #include <stdint.h>
 #include <math.h>
 
@@ -134,19 +136,20 @@ static inline float sylvaris_tinyml_prob(const float x[12]) {{
 """
         HEADER_OUT.write_text(c_code, encoding="utf-8")
 
-    # Quantization parity audit between float32 logistic model and int8 quantized weights
-    X_arr = np.asarray(X_70, dtype=np.float64)
-    z_f32 = X_arr @ w_f + b_f
-    z_q8 = X_arr @ (w_q / scale_q) + b_f
-    p_f32 = 1.0 / (1.0 + np.exp(-np.clip(z_f32, -20.0, 20.0)))
-    p_q8 = 1.0 / (1.0 + np.exp(-np.clip(z_q8, -20.0, 20.0)))
-    max_dz = float(np.max(np.abs(z_f32 - z_q8)))
-    gate_agree = float(np.mean((p_f32 >= 0.60) == (p_q8 >= 0.60)) * 100.0)
-
+    zva_f32 = Xva @ w_f + b_f
+    zva_q8 = Xva @ (w_q / scale_q) + b_f
+    pva_f32 = 1.0 / (1.0 + np.exp(-np.clip(zva_f32, -20.0, 20.0)))
+    pva_q8 = 1.0 / (1.0 + np.exp(-np.clip(zva_q8, -20.0, 20.0)))
     return {
         "w_q": w_q, "scale_q": scale_q, "bias": b_f,
-        "n_train": len(X_70), "n_pos": int(sum(y_70)),
-        "max_dz": max_dz, "gate_agree": gate_agree,
+        "tr_N": len(ytr), "tr_pos": int(ytr.sum()), "tr_g": gtr, "tr_y": ytr,
+        "va_N": len(yva), "va_pos": int(yva.sum()), "va_X": Xva, "va_y": yva,
+        "pva_q8": pva_q8,
+        "val_auroc": float(roc_auc_score(yva, pva_q8)),
+        "val_prauc": float(average_precision_score(yva, pva_q8)),
+        "val_brier": float(brier_score_loss(yva, pva_q8)),
+        "max_dz_val": float(np.max(np.abs(zva_f32 - zva_q8))),
+        "gate_agree_val": float(np.mean((pva_f32 >= 0.60) == (pva_q8 >= 0.60)) * 100.0),
     }
 
 
@@ -155,13 +158,21 @@ def score_tinyml_q8(model, feats):
     return 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, z))))
 
 
-def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, use_test=True):
-    sl = slice(lg["cut"], len(lg["values"])) if use_test else slice(0, lg["cut"])
-    st = lg["cut"] if use_test else 0
-    vals = lg["values"][sl]
+def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, split="test", direction="both"):
+    cut = lg["cut"]
+    split50 = int(len(lg["values"]) * 0.50)
+    if split == "val":
+        sl_start, sl_end = split50, cut
+    elif split == "train50":
+        sl_start, sl_end = 0, split50
+    else:
+        sl_start, sl_end = cut, len(lg["values"])
+
+    vals = lg["values"][sl_start:sl_end]
     grp = lg["group"]
-    start_dt = (datetime.datetime.fromisoformat(lg["start"]) + datetime.timedelta(hours=3 * st)).isoformat()
-    refs = ref_events(vals, thr)
+    start_dt = (datetime.datetime.fromisoformat(lg["start"]) + datetime.timedelta(hours=3 * sl_start)).isoformat()
+    refs = ref_events(vals, thr, direction="both")
+    dir_refs = ref_events(vals, thr, direction=direction)
     last_v, last_t, next_slot = None, None, 0
     reads = decs = fails = hold = 0
     hv, ht = [], []
@@ -200,33 +211,29 @@ def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, use
                 if rate is None or rate >= 2.0:
                     hold = 2
                 if hold > 0:
-                    slots = 1
-                    hold -= 1
+                    slots = 1; hold -= 1
                 elif rate >= 0.8:
                     slots = 2
                 else:
                     slots = 3
             elif pol == "V8_TinyML" or (pol == "Hybrid_Site6h+TinyML" and grp != "blocked"):
-                prob = score_tinyml_q8(tiny_model, extract_features(vals, start_dt, i, hv, ht))
+                prob = score_tinyml_q8(tiny_model, extract_features(vals, start_dt, i, hv, ht, include_clock=len(tiny_model["w_q"]) == 12))
                 if rate is None or rate >= 2.0:
                     hold = 2
                 if hold > 0:
-                    slots = 1
-                    hold -= 1
+                    slots = 1; hold -= 1
                 elif rate >= 0.8:
                     slots = 2
                 else:
                     slots = 2 if prob >= tau else 3
-                hv.append(v)
-                ht.append(t)
+                hv.append(v); ht.append(t)
             elif pol == "V8_no_hold":
                 slots = 1 if (rate is None or rate >= 2.0) else (2 if rate >= 0.8 else 3)
             elif pol == "V8_no_retry":
                 if rate is None or rate >= 2.0:
                     hold = 2
                 if hold > 0:
-                    slots = 1
-                    hold -= 1
+                    slots = 1; hold -= 1
                 elif rate >= 0.8:
                     slots = 2
                 else:
@@ -235,8 +242,7 @@ def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, use
                 if rate is None or rate >= 2.0:
                     hold = 2
                 if hold > 0:
-                    slots = 1
-                    hold -= 1
+                    slots = 1; hold -= 1
                 else:
                     slots = 2
             last_v, last_t = v, t
@@ -249,8 +255,7 @@ def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, use
                     hold = 2
             elif pol == "V8_no_retry":
                 if hold > 0:
-                    slots = 1
-                    hold -= 1
+                    slots = 1; hold -= 1
                 else:
                     slots = 2
         next_slot = i + slots
@@ -267,9 +272,11 @@ def sim_policy(lg, pol, thr=5.0, fault_mask=None, tiny_model=None, tau=0.60, use
     tp = len(delays)
     fp = len(alarms) - tp
     fn = len(refs) - tp
+    tp_dir = sum(1 for ev in dir_refs if any(0 <= a - ev <= 6.0 for a in alarms))
     return {
         "ev": len(refs), "TP": tp, "FP": fp, "FN": fn,
         "reads": reads, "decs": decs, "delays": delays,
+        "dir_ev": len(dir_refs), "dir_tp": tp_dir,
         "energy": len(vals) * 3 * 0.12 + reads * 0.12 + decs * 0.01,
     }
 
@@ -283,143 +290,184 @@ def wilson_ci(k, n, z=1.959963984540054):
 
 
 def agg(rs):
-    tp = sum(x["TP"] for x in rs)
-    fp = sum(x["FP"] for x in rs)
-    fn = sum(x["FN"] for x in rs)
-    ev = sum(x["ev"] for x in rs)
-    rd = sum(x["reads"] for x in rs)
-    dc = sum(x["decs"] for x in rs)
-    en = sum(x["energy"] for x in rs)
+    tp = sum(x["TP"] for x in rs); fp = sum(x["FP"] for x in rs); fn = sum(x["FN"] for x in rs); ev = sum(x["ev"] for x in rs)
+    rd = sum(x["reads"] for x in rs); dc = sum(x["decs"] for x in rs); en = sum(x["energy"] for x in rs)
+    dev = sum(x["dir_ev"] for x in rs); dtp = sum(x["dir_tp"] for x in rs)
     all_d = [d for x in rs for d in x["delays"]]
-    rec = (tp / ev * 100.0) if ev else 0.0
-    prec = (tp / (tp + fp) * 100.0) if (tp + fp) else 0.0
-    f1 = (2 * tp / (2 * tp + fp + fn) * 100.0) if (2 * tp + fp + fn) else 0.0
     return {
         "TP": tp, "FP": fp, "FN": fn, "ev": ev,
-        "rec": rec, "prec": prec, "f1": f1,
+        "rec": (tp / ev * 100.0) if ev else 0.0,
+        "prec": (tp / (tp + fp) * 100.0) if (tp + fp) else 0.0,
+        "f1": (2 * tp / (2 * tp + fp + fn) * 100.0) if (2 * tp + fp + fn) else 0.0,
         "delay": statistics.mean(all_d) if all_d else 0.0,
         "reads": rd, "decs": dc, "energy": en,
+        "dir_ev": dev, "dir_tp": dtp,
     }
+
+
+def verify_compiled_c_parity(loggers, tiny_model):
+    if not shutil.which("gcc"):
+        print("  [GCC check skipped: gcc not found in PATH]")
+        return
+    test_feats = []
+    for lg in loggers:
+        vals = lg["values"][lg["cut"]:]
+        sdt = (datetime.datetime.fromisoformat(lg["start"]) + datetime.timedelta(hours=3 * lg["cut"])).isoformat()
+        hv, ht = [], []
+        for i, v in enumerate(vals):
+            if not is_num(v):
+                continue
+            test_feats.append(extract_features(vals, sdt, i, hv, ht, include_clock=True))
+            hv.append(v); ht.append(i * 3)
+
+    with tempfile.TemporaryDirectory() as td:
+        td_p = pathlib.Path(td)
+        harness = td_p / "harness.c"
+        harness.write_text("""#include <stdio.h>
+#include "tinyml_gate.h"
+int main(void) {
+    float x[12];
+    while (scanf("%f %f %f %f %f %f %f %f %f %f %f %f",
+           &x[0],&x[1],&x[2],&x[3],&x[4],&x[5],&x[6],&x[7],&x[8],&x[9],&x[10],&x[11]) == 12) {
+        printf("%.9f\\n", sylvaris_tinyml_prob(x));
+    }
+    return 0;
+}
+""", encoding="utf-8")
+        obj_src = td_p / "gate_only.c"
+        obj_src.write_text('#include "tinyml_gate.h"\nfloat eval_gate(const float x[12]) { return sylvaris_tinyml_prob(x); }\n', encoding="utf-8")
+        exe_p = td_p / "harness.exe"; obj_p = td_p / "gate_only.o"
+        subprocess.run(["gcc", "-O2", "-I", str(ROOT / "tools"), str(harness), "-o", str(exe_p), "-lm"], check=True)
+        subprocess.run(["gcc", "-O2", "-c", "-I", str(ROOT / "tools"), str(obj_src), "-o", str(obj_p)], check=True)
+        sz = subprocess.check_output(["size", str(obj_p)], text=True).strip().splitlines()[-1].strip()
+        inp = "\n".join(" ".join(f"{v:.8f}" for v in row) for row in test_feats)
+        c_probs = np.array([float(line) for line in subprocess.check_output([str(exe_p)], input=inp, text=True).strip().splitlines()])
+        py_probs = np.array([score_tinyml_q8(tiny_model, r) for r in test_feats])
+        max_dp = float(np.max(np.abs(c_probs - py_probs)))
+        agree = float(np.mean((c_probs >= 0.60) == (py_probs >= 0.60)) * 100.0)
+        print(f"  Compiled GCC gate_only.o size line: [{sz}]")
+        print(f"  Python vs Compiled C parity (N={len(test_feats)}): max|p_Py - p_C| = {max_dp:.2e} | gate agree = {agree:.2f}%")
 
 
 def run_all():
     data = json.loads(LOGGERS_JS.read_text(encoding="utf-8").split("window.SYLVARIS_DATA = ", 1)[1].rstrip(";\n "))
     loggers = data["loggers"]
     tail_slots = sum(len(lg["values"]) - lg["cut"] for lg in loggers)
+    miss_slots = sum(sum(1 for v in lg["values"][lg["cut"]:] if not is_num(v)) for lg in loggers)
     logger_days = tail_slots * 3.0 / 24.0
-    print(f"Campaign: 9 loggers (Blocked=3, Drained=3, Forested=3) | Pooled test tail: {logger_days:.2f} logger-days ({tail_slots*3} h)")
+    print(f"Campaign: 9 loggers (Blocked=3, Drained=3, Forested=3) | 30% Test Tail: {logger_days:.2f} logger-days ({tail_slots*3} h) | Native missing: {miss_slots}/{tail_slots} ({miss_slots/tail_slots*100:.2f}%)")
 
-    # 1. Hydrological calm signature in 70% training prefixes + int8 TinyML fit
-    print("\n=== 1. 70% TRAIN HYDROLOGICAL SIGNATURE & INT8 TINYML EXPORT ===")
-    for grp in ("blocked", "drained", "forested"):
-        sub = [lg for lg in loggers if lg["group"] == grp]
-        calm_vals, pre_calm_vals = [], []
-        for lg in sub:
-            tr = lg["values"][:lg["cut"]]
-            steps = [abs(tr[i] - tr[i - 1]) for i in range(1, len(tr)) if is_num(tr[i]) and is_num(tr[i - 1])]
-            calm_vals.append(sum(1 for d in steps if d < 0.8) / len(steps) * 100.0)
-            spk = [i for i in range(2, len(tr)) if is_num(tr[i]) and is_num(tr[i - 1]) and is_num(tr[i - 2]) and abs(tr[i] - tr[i - 1]) >= 5.0]
-            if spk:
-                pre_calm_vals.append(sum(1 for i in spk if abs(tr[i - 1] - tr[i - 2]) < 0.8) / len(spk) * 100.0)
-        pc_str = f"{min(pre_calm_vals):.0f}–{max(pre_calm_vals):.0f}%" if pre_calm_vals else "N/A"
-        print(f"  {grp:8s} train plateau (<0.8 cm/3h): {min(calm_vals):.0f}–{max(calm_vals):.0f}% | pre-calm surge rate: {pc_str}")
-
+    # 1. Strict 50% Train / 20% Val (9h guard) Split & TinyML Export
+    print("\n=== 1. STRICT 50% TRAIN / 20% VAL SPLIT, CALIBRATION & C-PARITY ===")
     man = json.loads((ROOT / "DATASET_MANIFEST.json").read_text(encoding="utf-8"))
     sha_js = hashlib.sha256(LOGGERS_JS.read_bytes()).hexdigest()
     assert sha_js == man["loggers_js_sha256"], f"loggers.js SHA-256 mismatch: {sha_js}"
-
-    tiny_model = fit_and_quantize_tinyml(loggers, export_header=True)
     print(f"  Manifest SHA-256 verified OK: {sha_js[:16]}...")
-    print(f"  TinyML fit on 70% train (N={tiny_model['n_train']}, pos={tiny_model['n_pos']}={tiny_model['n_pos']/tiny_model['n_train']*100:.2f}%): q8={tiny_model['w_q'].tolist()}, scale={tiny_model['scale_q']:.3f}, bias={tiny_model['bias']:.4f}")
-    print(f"  Quantization parity (f32 vs int8): max|dz|={tiny_model['max_dz']:.4f} | tau=0.60 gate agreement={tiny_model['gate_agree']:.2f}%")
-    print("  -- Closed-Loop Train (0..70%) tau selection sweep (NO test peeking) --")
-    for tau_tr in (0.99, 0.70, 0.65, 0.60, 0.55, 0.50):
-        mt = agg([sim_policy(lg, "V8_TinyML", tiny_model=tiny_model, tau=tau_tr, use_test=False) for lg in loggers])
-        print(f"    TRAIN tau={tau_tr:.2f}: Rec={mt['rec']:6.2f}% F1={mt['f1']:6.2f}% Rd={mt['reads']:4d}")
-    print(f"  Exported C header -> {HEADER_OUT}")
 
-    # 2. Setting-Wise & Exploratory Ablation Nominal Matrix
-    print("\n=== 2. POOLED & SETTING-WISE NOMINAL ABLATION BENCHMARK ===")
+    for grp in ("blocked", "drained", "forested"):
+        sub = [lg for lg in loggers if lg["group"] == grp]
+        calms, pre_c = [], []
+        for lg in sub:
+            tr = lg["values"][:lg["cut"]]
+            st = [abs(tr[i] - tr[i - 1]) for i in range(1, len(tr)) if is_num(tr[i]) and is_num(tr[i - 1])]
+            calms.append(sum(1 for d in st if d < 0.8) / len(st) * 100.0)
+            sp = [i for i in range(2, len(tr)) if is_num(tr[i]) and is_num(tr[i - 1]) and is_num(tr[i - 2]) and abs(tr[i] - tr[i - 1]) >= 5.0]
+            if sp:
+                pre_c.append(sum(1 for i in sp if abs(tr[i - 1] - tr[i - 2]) < 0.8) / len(sp) * 100.0)
+        print(f"  {grp:8s} 0-70% calm (<0.8 cm/3h): {min(calms):.0f}-{max(calms):.0f}% | pre-calm surge: {min(pre_c):.0f}-{max(pre_c):.0f}%")
+
+    tiny_model = fit_and_quantize_tinyml(loggers, strides=(1, 2, 3), include_clock=True, export_header=True)
+    tiny_s1 = fit_and_quantize_tinyml(loggers, strides=(1,), include_clock=True, export_header=False)
+    tiny_noclk = fit_and_quantize_tinyml(loggers, strides=(1, 2, 3), include_clock=False, export_header=False)
+    print(f"  50% Train Full (strides 1-3): tr_N={tiny_model['tr_N']} (pos={tiny_model['tr_pos']}={tiny_model['tr_pos']/tiny_model['tr_N']*100:.2f}%) | 20% Val N={tiny_model['va_N']} (pos={tiny_model['va_pos']}={tiny_model['va_pos']/tiny_model['va_N']*100:.2f}%)")
+    print(f"    Val AUROC={tiny_model['val_auroc']:.3f} | PR-AUC={tiny_model['val_prauc']:.3f} | Brier={tiny_model['val_brier']:.3f} | f32/q8 agree={tiny_model['gate_agree_val']:.2f}%")
+    print(f"  50% Train Native (stride=1) : tr_N={tiny_s1['tr_N']} (pos={tiny_s1['tr_pos']}={tiny_s1['tr_pos']/tiny_s1['tr_N']*100:.2f}%) | Val AUROC={tiny_s1['val_auroc']:.3f} PR-AUC={tiny_s1['val_prauc']:.3f}")
+    print(f"  50% Train No-Clock ablation : Val AUROC={tiny_noclk['val_auroc']:.3f} PR-AUC={tiny_noclk['val_prauc']:.3f}")
+    print("  -- 20% Val (50-70%) Closed-Loop tau Selection --")
+    for tau_v in (0.99, 0.70, 0.65, 0.60, 0.55, 0.50):
+        mv = agg([sim_policy(lg, "V8_TinyML", tiny_model=tiny_model, tau=tau_v, split="val") for lg in loggers])
+        print(f"    VAL tau={tau_v:.2f}: Rec={mv['rec']:6.2f}% F1={mv['f1']:6.2f}% Rd={mv['reads']:4d}")
+    qs = np.quantile(tiny_model["pva_q8"], [0, 0.25, 0.5, 0.75, 1.0])
+    print("  -- 20% Val Calibration Quartiles (Monotonic Risk Lift) --")
+    for bi in range(4):
+        mk = (tiny_model["pva_q8"] >= qs[bi]) & (tiny_model["pva_q8"] <= qs[bi + 1] if bi == 3 else tiny_model["pva_q8"] < qs[bi + 1])
+        print(f"    Q{bi+1}: mean_pred={tiny_model['pva_q8'][mk].mean():.3f} | obs_rate={tiny_model['va_y'][mk].mean()*100:.2f}%")
+    verify_compiled_c_parity(loggers, tiny_model)
+
+    # 2. Disentangled Benchmark, Directional & Setting Breakdown
+    print("\n=== 2. POOLED, CAUSAL-DISENTANGLED & SETTING BENCHMARK (30% RETROSPECTIVE TAIL) ===")
     pols = [
         "Fixed_3h", "Fixed_6h", "Fixed_9h", "Adaptive_V6",
         "Safety_V8", "V8_no_hold", "V8_no_retry", "V8_cap6h",
-        "V8_TinyML", "Hybrid_Site6h", "Hybrid_Site6h+TinyML",
+        "Hybrid_Site6h", "V8_TinyML", "Hybrid_Site6h+TinyML",
     ]
     res_map = {}
     for p in pols:
-        rs = [sim_policy(lg, p, thr=5.0, tiny_model=tiny_model) for lg in loggers]
+        rs = [sim_policy(lg, p, thr=5.0, tiny_model=tiny_model, split="test", direction="rise") for lg in loggers]
         res_map[p] = rs
         m = agg(rs)
         note = " [ORACLE-LIKE GRID REF]" if p == "Fixed_3h" else ""
-        print(f"  {p:20s} | TP/FP/FN={m['TP']:2d}/{m['FP']:2d}/{m['FN']:2d} | Rec={m['rec']:6.2f}% Prec={m['prec']:6.2f}% F1={m['f1']:6.2f}% Del={m['delay']:.2f}h | Rd={m['reads']:4d} | E={m['energy']:.2f}{note}")
+        print(f"  {p:20s} | TP/FP/FN={m['TP']:2d}/{m['FP']:2d}/{m['FN']:2d} | Rec={m['rec']:6.2f}% Prec={m['prec']:6.2f}% F1={m['f1']:6.2f}% Del={m['delay']:.2f}h | Rd={m['reads']:4d}{note}")
+    print(f"  Directional distribution in 30% tails: Rapid-Rise (>=+5 cm)={agg(res_map['Fixed_6h'])['dir_ev']} | Rapid-Fall (<=-5 cm)={sum(len(ref_events(lg['values'][lg['cut']:],5.0,'fall')) for lg in loggers)}")
+    print(f"  Stride=1-only Sensitivity on 30% Test: V8_TinyML={agg([sim_policy(lg,'V8_TinyML',tiny_model=tiny_s1) for lg in loggers])['rec']:.2f}%/{agg([sim_policy(lg,'V8_TinyML',tiny_model=tiny_s1) for lg in loggers])['f1']:.2f}% | Hybrid+TinyML={agg([sim_policy(lg,'Hybrid_Site6h+TinyML',tiny_model=tiny_s1) for lg in loggers])['rec']:.2f}%/{agg([sim_policy(lg,'Hybrid_Site6h+TinyML',tiny_model=tiny_s1) for lg in loggers])['f1']:.2f}%")
 
     print("  -- Setting-wise Breakdown --")
     for grp in ("blocked", "drained", "forested"):
         idxs = [i for i, lg in enumerate(loggers) if lg["group"] == grp]
-        for p in ("Fixed_6h", "Adaptive_V6", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML"):
+        for p in ("Fixed_6h", "Safety_V8", "Hybrid_Site6h", "V8_TinyML", "Hybrid_Site6h+TinyML"):
             m = agg([res_map[p][i] for i in idxs])
             print(f"    {grp:8s} | {p:20s} | TP/EV={m['TP']:2d}/{m['ev']:2d} Rec={m['rec']:6.2f}% F1={m['f1']:6.2f}% Rd={m['reads']:4d}")
 
-    # 3. Wilson & 10,000-Resample Logger-Cluster Bootstrap 95% CIs
-    print("\n=== 3. WILSON & 10,000-RESAMPLE LOGGER-CLUSTER BOOTSTRAP 95% CIs ===")
+    # 3. Wilson & 10,000-Resample Within-Campaign Bootstrap 95% CIs
+    print("\n=== 3. WILSON & WITHIN-CAMPAIGN CLUSTER BOOTSTRAP 95% CIs ===")
     rng = random.Random(2026)
-    boot_pols = ("Fixed_6h", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML")
+    boot_pols = ("Fixed_6h", "Safety_V8", "Hybrid_Site6h", "V8_TinyML", "Hybrid_Site6h+TinyML")
     boots = {p: {"rec": [], "f1": []} for p in boot_pols}
-    diffs = {"V8-6h": [], "Tiny-6h": [], "HybTiny-6h": [], "V8-V6": [], "HybTiny-V8": []}
+    diffs = {"HybT-6h": [], "HybT-Hyb": [], "V8-6h": [], "V8-V6": []}
     for _ in range(10000):
         samp = [rng.randrange(len(loggers)) for _ in range(len(loggers))]
-        cur = {}
-        for p in boot_pols + ("Adaptive_V6",):
-            m = agg([res_map[p][i] for i in samp])
-            cur[p] = m
-            if p in boots:
-                boots[p]["rec"].append(m["rec"])
-                boots[p]["f1"].append(m["f1"])
+        cur = {p: agg([res_map[p][i] for i in samp]) for p in boot_pols + ("Adaptive_V6",)}
+        for p in boot_pols:
+            boots[p]["rec"].append(cur[p]["rec"]); boots[p]["f1"].append(cur[p]["f1"])
+        diffs["HybT-6h"].append(cur["Hybrid_Site6h+TinyML"]["f1"] - cur["Fixed_6h"]["f1"])
+        diffs["HybT-Hyb"].append(cur["Hybrid_Site6h+TinyML"]["f1"] - cur["Hybrid_Site6h"]["f1"])
         diffs["V8-6h"].append(cur["Safety_V8"]["f1"] - cur["Fixed_6h"]["f1"])
-        diffs["Tiny-6h"].append(cur["V8_TinyML"]["f1"] - cur["Fixed_6h"]["f1"])
-        diffs["HybTiny-6h"].append(cur["Hybrid_Site6h+TinyML"]["f1"] - cur["Fixed_6h"]["f1"])
         diffs["V8-V6"].append(cur["Safety_V8"]["f1"] - cur["Adaptive_V6"]["f1"])
-        diffs["HybTiny-V8"].append(cur["Hybrid_Site6h+TinyML"]["f1"] - cur["Safety_V8"]["f1"])
-
     for p in boot_pols:
-        m = agg(res_map[p])
-        w_lo, w_hi = wilson_ci(m["TP"], m["ev"])
-        br = sorted(boots[p]["rec"])
-        bf = sorted(boots[p]["f1"])
-        print(f"  {p:20s} | Wilson Rec [{w_lo:.1f}%, {w_hi:.1f}%] | Boot Rec [{br[250]:.1f}%, {br[9750]:.1f}%] | Boot F1 [{bf[250]:.1f}%, {bf[9750]:.1f}%]")
+        m = agg(res_map[p]); wl, wh = wilson_ci(m["TP"], m["ev"])
+        br, bf = sorted(boots[p]["rec"]), sorted(boots[p]["f1"])
+        print(f"  {p:20s} | Wilson [{wl:.1f}%, {wh:.1f}%] | Boot Rec [{br[250]:.1f}%, {br[9750]:.1f}%] | Boot F1 [{bf[250]:.1f}%, {bf[9750]:.1f}%]")
     for k, arr in diffs.items():
         s = sorted(arr)
-        print(f"  Delta F1 ({k:11s}): [{s[250]:+.1f}, {s[9750]:+.1f}] pp")
+        print(f"  Delta F1 ({k:8s}): [{s[250]:+.1f}, {s[9750]:+.1f}] pp")
 
-    # 4. Exploratory Cutoff Sweep (3..6 cm)
-    print("\n=== 4. EXPLORATORY CUTOFF SWEEP (3..6 CM, NO RE-TUNING) ===")
+    # 4. Cutoff Sweep (3..6 cm)
+    print("\n=== 4. EXPLORATORY CUTOFF SWEEP (3..6 CM) ===")
     for thr in (3.0, 4.0, 5.0, 6.0):
         line = []
-        for p in ("Fixed_6h", "Adaptive_V6", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML"):
+        for p in ("Fixed_6h", "Safety_V8", "Hybrid_Site6h", "V8_TinyML", "Hybrid_Site6h+TinyML"):
             m = agg([sim_policy(lg, p, thr=thr, tiny_model=tiny_model) for lg in loggers])
             line.append(f"{p}={m['rec']:.1f}/{m['f1']:.1f}")
         print(f"  thr={thr:.1f} cm (N={m['ev']:2d}): " + " | ".join(line))
 
-    # 5. Fair Timestamp-Matched Observation Loss Injection (30 paired seeds)
-    print("\n=== 5. TIMESTAMP-MATCHED OBSERVATION LOSS INJECTION (30 PAIRED SEEDS) ===")
-    fpols = ("Fixed_6h", "Adaptive_V6", "V8_no_retry", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML")
+    # 5. Timestamp-Matched Observation Loss Injection (30 paired seeds)
+    print("\n=== 5. TIMESTAMP-MATCHED OBSERVATION LOSS (q_k=0, 30 PAIRED SEEDS) ===")
+    fpols = ("Fixed_6h", "V8_no_retry", "Safety_V8", "Hybrid_Site6h", "V8_TinyML", "Hybrid_Site6h+TinyML")
     for rate_f in (0.01, 0.05, 0.10):
-        print(f"  -- i.i.d. observation/read failure {int(rate_f*100)}% (q_k=0) --")
+        print(f"  -- i.i.d. observation loss {int(rate_f*100)}% --")
         per = {p: {"rec": [], "f1": [], "rd": []} for p in fpols}
         for s in range(30):
             r = random.Random(2026 + s)
             masks = [{i for i in range(len(lg["values"]) - lg["cut"]) if r.random() < rate_f} for lg in loggers]
             for p in fpols:
                 m = agg([sim_policy(lg, p, fault_mask=masks[k], tiny_model=tiny_model) for k, lg in enumerate(loggers)])
-                per[p]["rec"].append(m["rec"])
-                per[p]["f1"].append(m["f1"])
-                per[p]["rd"].append(m["reads"])
+                per[p]["rec"].append(m["rec"]); per[p]["f1"].append(m["f1"]); per[p]["rd"].append(m["reads"])
         for p in fpols:
             print(f"    {p:20s}: med Rec={statistics.median(per[p]['rec']):6.2f}% med F1={statistics.median(per[p]['f1']):6.2f}% med Rd={statistics.median(per[p]['rd']):6.1f}")
 
-    # 9h Burst x3 (30 paired seeds)
-    print("  -- 9h burst outage (x3/logger, 30 seeds) --")
-    bper = {p: {"rec": [], "f1": [], "rd": []} for p in ("Fixed_6h", "V8_no_retry", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML")}
+    # 9h Burst outage (x3/logger, 30 seeds)
+    print("  -- 9h observation burst outage (x3/logger, 30 seeds) --")
+    bper = {p: {"rec": [], "f1": [], "rd": []} for p in fpols}
     for s in range(30):
         r = random.Random(700 + s)
         masks = []
@@ -430,49 +478,48 @@ def run_all():
                 st = r.randrange(max(1, n - 3))
                 mk.update((st, st + 1, st + 2))
             masks.append(mk)
-        for p in bper:
+        for p in fpols:
             m = agg([sim_policy(lg, p, fault_mask=masks[k], tiny_model=tiny_model) for k, lg in enumerate(loggers)])
             bper[p]["rec"].append(m["rec"]); bper[p]["f1"].append(m["f1"]); bper[p]["rd"].append(m["reads"])
-    for p in bper:
+    for p in fpols:
         print(f"    {p:20s}: med Rec={statistics.median(bper[p]['rec']):6.2f}% med F1={statistics.median(bper[p]['f1']):6.2f}% med Rd={statistics.median(bper[p]['rd']):6.1f}")
 
-    # Direct onset corruption (all 37 episode onset timestamps corrupted simultaneously)
-    print("  -- Direct episode-onset corruption --")
+    # Direct onset corruption & 9h burst
     onset_masks = [{t // 3 for t in ref_events(lg["values"][lg["cut"]:], 5.0)} for lg in loggers]
-    for p in ("Fixed_6h", "V8_no_retry", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML"):
+    print("  -- Direct episode-onset corruption --")
+    for p in fpols:
         m = agg([sim_policy(lg, p, fault_mask=onset_masks[k], tiny_model=tiny_model) for k, lg in enumerate(loggers)])
         print(f"    {p:20s}: Rec={m['rec']:6.2f}% Delay={m['delay']:.2f}h Rd={m['reads']}")
 
-    # 6. Decomposed Energy, Extreme Solar Shading, 12.15 dBm RF Sweep & 24-Month TCO
-    print("\n=== 6. DECOMPOSED ENERGY, EXTREME SOLAR, 12.15 dBm RF & 24-MO TCO ===")
-    sol_nom = 5.0 * 5.0 * 0.10 * 0.65   # 1.625 Wh/d
-    sol_ext = 5.0 * 1.0 * 0.05 * 0.65   # 0.1625 Wh/d
-    tiny_inf_mah = 12 * 0.000001        # Analytic tiny increment (<< 0.01 mAh/wake MCU budget; pending Gate G1 shunt test)
-    for lbl, i_slp_ma, r_mah, eta in [("Case A (25uA opt.)", 0.025, 0.05, 0.90), ("Case B (120uA typ.)", 0.120, 0.12, 0.85), ("Case C (2.0mA leaky)", 2.000, 0.12, 0.85)]:
+    # 6. Component-Parameterized Energy, Sensor Probe Variants, 12.15 dBm RF & Itemized TCO
+    print("\n=== 6. COMPONENT-DECOMPOSED ENERGY, PROBE VARIANTS, 12.15 dBm RF & TCO ===")
+    sol_ext = 5.0 * 1.0 * 0.05 * 0.65  # 0.1625 Wh/d (1 sun-h, 95% parametric shade)
+    # Parameterize separately: E_sleep(i_slp), E_sense(warmup mAh), E_proc(MCU wake mAh), E_LoRa(TX * (1+retx)), reg_eta
+    energy_cases = [
+        ("Case A (3.3V native, 25uA)", 0.025, 0.00042, 0.010, 0.01233, 0.00, 0.90),  # 15mA*100ms probe + 370ms@120mA SF10 LoRa
+        ("Case B (4-20mA boost, 120uA)", 0.120, 0.00735, 0.010, 0.01233, 0.15, 0.85),# 45mA*500ms/0.85 probe + 15% TX retry
+        ("Case C (2.0mA leaky standby)", 2.000, 0.00735, 0.010, 0.01233, 0.15, 0.85),
+    ]
+    for lbl, i_slp, e_sense, e_proc, e_tx, p_retx, eta in energy_cases:
         vals = {}
-        for p in ("Fixed_6h", "Safety_V8", "V8_TinyML", "Hybrid_Site6h+TinyML"):
+        for p in ("Fixed_6h", "Safety_V8", "Hybrid_Site6h+TinyML"):
             m = agg(res_map[p])
-            mah_tot = (logger_days * 24.0 * i_slp_ma + m["reads"] * r_mah + m["decs"] * (0.01 + (tiny_inf_mah if "TinyML" in p else 0.0))) / eta
+            e_act = e_sense + (e_proc if p != "Fixed_6h" else 0.005) + e_tx * (1.0 + p_retx)
+            mah_tot = (logger_days * 24.0 * i_slp + m["reads"] * e_act) / eta
             vals[p] = (mah_tot * 3.7 / 1000.0) / logger_days
-        sav_v8 = (1.0 - vals["Safety_V8"] / vals["Fixed_6h"]) * 100.0
-        sav_hyb = (1.0 - vals["Hybrid_Site6h+TinyML"] / vals["Fixed_6h"]) * 100.0
-        print(f"  {lbl:20s}: 6h={vals['Fixed_6h']:.4f} | V8={vals['Safety_V8']:.4f} (-{sav_v8:.2f}%, {sol_ext/vals['Safety_V8']:.1f}x ext) | HybTiny={vals['Hybrid_Site6h+TinyML']:.4f} (-{sav_hyb:.2f}%, {sol_ext/vals['Hybrid_Site6h+TinyML']:.1f}x ext)")
+        sav_v8 = (vals["Safety_V8"] / vals["Fixed_6h"] - 1.0) * 100.0
+        sav_hyb = (vals["Hybrid_Site6h+TinyML"] / vals["Fixed_6h"] - 1.0) * 100.0
+        print(f"  {lbl:30s}: 6h={vals['Fixed_6h']:.4f} | V8={vals['Safety_V8']:.4f} ({sav_v8:+.2f}%, {sol_ext/vals['Safety_V8']:.1f}x) | HybT={vals['Hybrid_Site6h+TinyML']:.4f} ({sav_hyb:+.2f}%, {sol_ext/vals['Hybrid_Site6h+TinyML']:.1f}x)")
 
-    print("  -- 12.15 dBm Legal EIRP RF Sweep (1.5 dB feeder + 45 dB canopy) --")
     for d_km in (0.5, 1.0, 1.5):
         fspl = 32.45 + 20.0 * math.log10(433.0) + 20.0 * math.log10(d_km)
         prx = 12.15 - fspl - 1.5 - 45.0
-        print(f"    d={d_km:.1f} km: FSPL={fspl:.2f} dB -> Prx={prx:.2f} dBm | SF10(-132)={prx+132:+.2f} dB | SF12(-137)={prx+137:+.2f} dB")
+        print(f"  RF d={d_km:.1f} km (1.5 dB TX/RX cab, 45 dB canopy): Prx={prx:.2f} dBm | SF10={prx+132:+.2f} dB | SF12={prx+137:+.2f} dB")
 
-    opex_travel = 8 * 350000          # 8 quarterly boat/field trips @ IDR 350k
-    opex_sim = 24 * 50000             # 24 months LTE/cellular SIM backhaul @ IDR 50k
-    opex_calib = 1700000              # 4x semi-annual datum/probe calibration & spares
-    opex_refurb = 1200000             # Year-2 1S2P battery/desiccant refurbishment
-    opex_24 = opex_travel + opex_sim + opex_calib + opex_refurb  # 6,900,000 IDR
-    stress_probe = int(11 * 350000 * 0.5 + 87500) # +50% probe price + 15% contingency = 2,012,500 IDR
-    stress_travel = opex_travel       # 2x field visits (+8 trips @ 350k = +2,800,000 IDR)
-    print(f"  -- 24-Mo TCO Itemized (10 nodes) -- OPEX={opex_24:,} (Travel={opex_travel:,} + SIM={opex_sim:,} + Calib={opex_calib:,} + Refurb={opex_refurb:,}) IDR")
-    print(f"     Base TCO={12123000+opex_24:,} | Web TCO={13653950+opex_24:,} | Stress TCO={13653950+opex_24+stress_probe+stress_travel:,} IDR")
+    opex_travel = 8 * 350000; opex_sim = 24 * 50000; opex_calib = 1700000; opex_refurb = 1200000
+    opex_24 = opex_travel + opex_sim + opex_calib + opex_refurb
+    stress_probe = int(11 * 350000 * 0.5 + 87500)
+    print(f"  24-Mo TCO Itemized: OPEX={opex_24:,} | Base={12123000+opex_24:,} | Web={13653950+opex_24:,} | Stress={13653950+opex_24+stress_probe+opex_travel:,} IDR")
 
 
 if __name__ == "__main__":
