@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # CONFIGURATION
 # ============================================================
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "sylvaris" / "output_v7" / "leeds_official"
 OUT = ROOT / "sylvaris" / "output_v8"
 OUT.mkdir(parents=True, exist_ok=True)
