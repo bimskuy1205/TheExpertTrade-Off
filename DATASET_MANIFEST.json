@@ -1,0 +1,90 @@
+{
+  "dataset": "Water-level and rainfall data of Sebangau Tropical Peatland, Kalimantan, Indonesia",
+  "authors": "Putra, S. S., Holden, J., & Baird, A. J. (2021)",
+  "doi": "10.5518/960",
+  "campaign_structure": "9 monitoring logger series nested within 3 peatland settings (Blocked, Drained, Forested), 2019-2020",
+  "loggers_js_sha256": "bb4b45668e1471207d3480348c3d0cab1b39eae7f293e25ecf8ad1f99dbb3d96",
+  "source_csv_files": {
+    "blocked_BB1": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/blocked_auto_wl_BB1.csv",
+      "sha256": "7c01452d3e3bf46a769aa48956a9a72e05716bb99aa0f836c4744de20e4c1bcd",
+      "bytes": 29486,
+      "grid_slots_total": 1055,
+      "tail_cut_idx": 738,
+      "tail_slots": 317,
+      "tail_logger_days": 39.625
+    },
+    "blocked_BB2": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/blocked_auto_wl_BB2.csv",
+      "sha256": "05c24b2369c82a8b20c39140b4e9bf1ffac4b1c75ca7a760621c1466b7d311d9",
+      "bytes": 29426,
+      "grid_slots_total": 984,
+      "tail_cut_idx": 688,
+      "tail_slots": 296,
+      "tail_logger_days": 37.0
+    },
+    "blocked_BB3": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/blocked_auto_wl_BB3.csv",
+      "sha256": "0039e9ac8573f7e0eb6b619e9bc15852a0e4e33dd007d899e83a3f72efc7d12d",
+      "bytes": 30022,
+      "grid_slots_total": 1079,
+      "tail_cut_idx": 755,
+      "tail_slots": 324,
+      "tail_logger_days": 40.5
+    },
+    "drained_AA1": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/drained_auto_wl_AA1.csv",
+      "sha256": "2a4dc77e7caafdbbcbd547fdec6847df9aee84cde1b3f451c3ed1ffd9e8665ed",
+      "bytes": 39914,
+      "grid_slots_total": 1173,
+      "tail_cut_idx": 821,
+      "tail_slots": 352,
+      "tail_logger_days": 44.0
+    },
+    "drained_AA2": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/drained_auto_wl_AA2.csv",
+      "sha256": "11264c506d265a5c57873f116b11d6f952c1b99c06a16004a1380dee3dbb893e",
+      "bytes": 30934,
+      "grid_slots_total": 1147,
+      "tail_cut_idx": 802,
+      "tail_slots": 345,
+      "tail_logger_days": 43.125
+    },
+    "drained_AA3": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/drained_auto_wl_AA3.csv",
+      "sha256": "f306df7c7a86a3687952a382cdd3762245f7b40fa94a7ede00ca35e22bcf3a55",
+      "bytes": 30066,
+      "grid_slots_total": 1071,
+      "tail_cut_idx": 749,
+      "tail_slots": 322,
+      "tail_logger_days": 40.25
+    },
+    "forested_AL0": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/forested_auto_wl_AL0.csv",
+      "sha256": "a04628b8a0e0d50257390e3b9ca93f537419c63e7553cb5de9abf727a6321476",
+      "bytes": 32713,
+      "grid_slots_total": 1181,
+      "tail_cut_idx": 826,
+      "tail_slots": 355,
+      "tail_logger_days": 44.375
+    },
+    "forested_AL1": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/forested_auto_wl_AL1.csv",
+      "sha256": "a02fdf86cb824f1f21146d813d1a8558dc73bc8e63491c42ec0695aec43935a8",
+      "bytes": 32803,
+      "grid_slots_total": 1181,
+      "tail_cut_idx": 826,
+      "tail_slots": 355,
+      "tail_logger_days": 44.375
+    },
+    "forested_AL5": {
+      "archive_path": "SYLVARIS_research_starter/sylvaris/output_v7/leeds_official/forested_auto_wl_AL5.csv",
+      "sha256": "dc95cbab1af6028c29b16ce744c04f96f8a8b1838dfc11e22568923b9dd99dc0",
+      "bytes": 32771,
+      "grid_slots_total": 1182,
+      "tail_cut_idx": 827,
+      "tail_slots": 355,
+      "tail_logger_days": 44.375
+    }
+  }
+}
